@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NEURAL_PAINT_OS | Hardware Simulation</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        :root {
+            --bg-deep: #0a0e17;
+            --card-bg: #111827;
+            --border-main: #1f2937;
+        }
+        body {
+            background-color: var(--bg-deep);
+            color: #dde4e5;
+            font-family: 'Hanken Grotesk', sans-serif;
+            overflow-x: hidden;
+        }
+        .code-font { font-family: 'JetBrains Mono', monospace; }
+        .glow-cyan { box-shadow: 0 0 12px rgba(34, 211, 238, 0.3); }
+        .glow-amber { box-shadow: 0 0 15px rgba(255, 177, 59, 0.5); }
+        .glow-red { box-shadow: 0 0 10px rgba(255, 100, 100, 0.4); }
+        
+        @keyframes vibrate {
+            0% { transform: translate(0,0); }
+            25% { transform: translate(1px, -1px); }
+            50% { transform: translate(-1px, 1px); }
+            75% { transform: translate(1px, 1px); }
+            100% { transform: translate(0,0); }
+        }
+        .vibrate { animation: vibrate 0.1s infinite; }
+        
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 8px rgba(34, 211, 238, 0.3); }
+            50% { box-shadow: 0 0 20px rgba(34, 211, 238, 0.6); }
+        }
+        .pulse-glow { animation: pulse-glow 1.5s infinite; }
+
+        .grid-cell {
+            width: 100%;
+            aspect-ratio: 1;
+            background: #1a2122;
+            border: 0.5px solid #2f3638;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .grid-cell:hover { background: #2a3132; }
+        .grid-cell.unpainted { background: #1b5059; border-color: #2d7a85; }
+        .grid-cell.active { background: #ffb13b; border-color: #ffc56e; transform: scale(1.05); z-index: 1; }
+        .grid-cell.painted { background: #22d3ee; border-color: #67e8f9; }
+        .grid-cell.manual { background: #fbbf24; border-color: #fcd34d; }
+
+        .terminal-scroll::-webkit-scrollbar { width: 4px; }
+        .terminal-scroll::-webkit-scrollbar-track { background: transparent; }
+        .terminal-scroll::-webkit-scrollbar-thumb { background: #3c494c; }
+
+        @keyframes drop-fall {
+            0% { transform: translateY(0) scaleY(1); opacity: 1; }
+            100% { transform: translateY(30px) scaleY(0.5); opacity: 0; }
+        }
+        .drop-anim { animation: drop-fall 0.5s ease-in forwards; }
+
+        .spray-badge {
+            display: none;
+            position: absolute;
+            bottom: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(34, 211, 238, 0.9);
+            color: #000;
+            padding: 2px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+        .spray-badge.show { display: block; animation: pulse-glow 0.5s infinite; }
+    </style>
+<script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "outline-variant": "#3c494c",
+                    "surface-variant": "#2f3638",
+                    "surface-container": "#1a2122",
+                    "on-secondary-fixed": "#001f25",
+                    "secondary-fixed-dim": "#9dcfda",
+                    "inverse-on-surface": "#2b3233",
+                    "inverse-surface": "#dde4e5",
+                    "surface-dim": "#0e1416",
+                    "tertiary-fixed-dim": "#ffb957",
+                    "secondary-container": "#1b5059",
+                    "on-primary-fixed-variant": "#004e5a",
+                    "on-tertiary-fixed-variant": "#643f00",
+                    "on-primary": "#00363e",
+                    "tertiary-container": "#ffb13b",
+                    "surface-container-highest": "#2f3638",
+                    "on-tertiary-fixed": "#2a1800",
+                    "on-tertiary": "#462b00",
+                    "tertiary": "#ffd6a3",
+                    "surface-container-lowest": "#090f11",
+                    "on-error": "#690005",
+                    "surface": "#0e1416",
+                    "on-primary-fixed": "#001f25",
+                    "secondary": "#9dcfda",
+                    "surface-bright": "#343a3c",
+                    "primary-container": "#22d3ee",
+                    "surface-container-low": "#161d1e",
+                    "on-surface-variant": "#bbc9cd",
+                    "on-surface": "#dde4e5",
+                    "on-tertiary-container": "#6e4600",
+                    "on-secondary-fixed-variant": "#184d57",
+                    "tertiary-fixed": "#ffddb5",
+                    "surface-container-highest": "#2f3638",
+                    "on-error-container": "#ffdad6",
+                    "primary-fixed": "#a2eeff",
+                    "error": "#ffb4ab",
+                    "inverse-primary": "#006877",
+                    "surface-container-high": "#242b2d",
+                    "primary": "#8aebff",
+                    "surface-tint": "#2fd9f4",
+                    "primary-fixed-dim": "#2fd9f4",
+                    "on-background": "#dde4e5",
+                    "error-container": "#93000a",
+                    "secondary-fixed": "#b8ebf7",
+                    "on-secondary": "#00363e",
+                    "outline": "#859397",
+                    "background": "#0e1416",
+                    "on-secondary-container": "#8fc0cc"
+            },
+            "borderRadius": { "xl": "0.5rem", "full": "0.75rem" },
+            "spacing": { "xl": "40px", "lg": "24px", "sm": "8px", "xs": "4px", "md": "16px" },
+            "fontFamily": {
+                    "body-base": ["Hanken Grotesk"],
+                    "code-label": ["JetBrains Mono"],
+                    "headline-md": ["Hanken Grotesk"]
+            }
+          }
+        }
+      }
+    </script>
+</head>
+<body class="bg-background text-on-background">
+
+<!-- TopNavBar -->
+<header class="fixed top-0 z-50 w-full bg-background border-b border-outline-variant flex justify-between items-center px-lg py-sm">
+    <div class="flex items-center gap-md">
+        <span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">precision_manufacturing</span>
+        <h1 class="font-headline-md text-headline-md tracking-tight text-primary">Autonomous Painting System — Hardware Simulation</h1>
+    </div>
+    <div class="flex items-center gap-md">
+        <div class="bg-secondary-container/20 border border-secondary text-secondary px-md py-xs text-[11px] font-code-label tracking-widest rounded-lg">
+            DEMO MODE — No Hardware Required
+        </div>
+    </div>
+</header>
+
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-64 z-40 bg-surface-container border-r border-outline-variant flex flex-col pt-24">
+    <div class="px-md mb-xl">
+        <div class="flex items-center gap-sm mb-xs">
+            <div class="w-8 h-8 rounded bg-primary/20 flex items-center justify-center">
+                <span class="material-symbols-outlined text-primary text-sm">terminal</span>
+            </div>
+            <div>
+                <p class="font-headline-md text-[14px] text-primary leading-tight">AUTO_PAINT_v1.0</p>
+                <p class="font-code-label text-[10px] text-secondary" id="sys-status">STATUS: STANDBY</p>
+            </div>
+        </div>
+    </div>
+    <nav class="flex flex-col gap-xs">
+        <div class="text-primary bg-secondary-container/20 border-l-4 border-primary px-md py-sm flex items-center gap-md cursor-pointer">
+            <span class="material-symbols-outlined">precision_manufacturing</span>
+            <span class="font-code-label text-[11px] uppercase">VISUALIZER</span>
+        </div>
+        <div class="text-on-surface-variant px-md py-sm flex items-center gap-md cursor-pointer hover:bg-surface-variant/50 hover:text-primary transition-all">
+            <span class="material-symbols-outlined">settings_input_component</span>
+            <span class="font-code-label text-[11px] uppercase">DIAGNOSTICS</span>
+        </div>
+        <div class="text-on-surface-variant px-md py-sm flex items-center gap-md cursor-pointer hover:bg-surface-variant/50 hover:text-primary transition-all">
+            <span class="material-symbols-outlined">analytics</span>
+            <span class="font-code-label text-[11px] uppercase">TELEMETRY</span>
+        </div>
+        <div class="text-on-surface-variant px-md py-sm flex items-center gap-md cursor-pointer hover:bg-surface-variant/50 hover:text-primary transition-all">
+            <span class="material-symbols-outlined">terminal</span>
+            <span class="font-code-label text-[11px] uppercase">LOGS</span>
+        </div>
+    </nav>
+    <div class="mt-auto px-md py-md border-t border-outline-variant">
+        <p class="font-code-label text-[9px] text-on-surface-variant opacity-50">VIT CHENNAI MDP</p>
+        <p class="font-code-label text-[9px] text-on-surface-variant opacity-50">NEURAL PAINT OS v1.0.4</p>
+    </div>
+</aside>
+
+<!-- Main Content Area -->
+<main class="ml-64 pt-24 px-lg pb-lg min-h-screen grid grid-cols-12 gap-lg">
+
+<!-- LEFT PANEL (Hardware Simulation) -->
+<section class="col-span-8 flex flex-col gap-lg">
+
+    <!-- ESP32-CAM Controller Card -->
+    <div class="bg-surface-container-low border border-outline-variant p-lg rounded-lg relative overflow-hidden">
+        <div class="flex justify-between items-start mb-lg">
+            <div>
+                <h2 class="font-code-label text-[11px] text-primary uppercase tracking-widest mb-xs">Controller Unit</h2>
+                <h3 class="text-xl text-on-surface font-semibold">ESP32-CAM (AI Thinker)</h3>
+            </div>
+            <div class="flex gap-lg items-center">
+                <div class="flex items-center gap-sm">
+                    <div class="w-2.5 h-2.5 rounded-full bg-surface-variant transition-all duration-500" id="led-wifi"></div>
+                    <span class="font-code-label text-[10px] uppercase text-on-surface-variant">WiFi</span>
+                </div>
+                <div class="flex items-center gap-sm">
+                    <div class="w-2.5 h-2.5 rounded-full bg-surface-variant transition-all duration-500" id="led-cam"></div>
+                    <span class="font-code-label text-[10px] uppercase text-on-surface-variant">Camera</span>
+                </div>
+                <div class="flex items-center gap-sm">
+                    <div class="w-2.5 h-2.5 rounded-full bg-surface-variant transition-all duration-500" id="led-ap"></div>
+                    <span class="font-code-label text-[10px] uppercase text-on-surface-variant">AP: 192.168.4.1</span>
+                </div>
+            </div>
+        </div>
+        <!-- Schematic Board -->
+        <div class="relative w-full h-44 border border-primary/20 bg-background/50 rounded flex items-center justify-center">
+            <div class="w-44 h-52 bg-surface-variant/20 border-2 border-primary/40 rounded-lg flex flex-col items-center pt-3 relative">
+                <div class="w-14 h-14 bg-surface-container-highest border border-outline-variant rounded-full flex items-center justify-center">
+                    <div class="w-7 h-7 bg-black rounded-full border-2 border-zinc-700"></div>
+                </div>
+                <p class="font-code-label text-[10px] mt-1.5 text-primary">AI THINKER</p>
+                <p class="font-code-label text-[8px] text-on-surface-variant">ESP32-CAM</p>
+                <!-- GPIO Pins Left -->
+                <div class="absolute -left-3 top-6 flex flex-col gap-2">
+                    <div class="w-3 h-1.5 bg-zinc-600 rounded-l"></div>
+                    <div class="w-3 h-1.5 bg-zinc-600 rounded-l"></div>
+                    <div class="w-3 h-1.5 bg-zinc-600 rounded-l"></div>
+                    <div class="w-3 h-1.5 bg-zinc-600 rounded-l"></div>
+                    <div class="w-3 h-1.5 bg-zinc-600 rounded-l"></div>
+                    <div class="w-3 h-1.5 bg-zinc-600 rounded-l"></div>
+                </div>
+                <!-- GPIO Pins Right -->
+                <div class="absolute -right-3 top-6 flex flex-col gap-2">
+                    <div class="w-3 h-1.5 bg-zinc-600 rounded-r"></div>
+                    <div class="w-3 h-1.5 bg-zinc-600 rounded-r"></div>
+                    <div class="w-3 h-1.5 bg-zinc-600 rounded-r transition-all duration-300" id="gpio13-pin"></div>
+                    <div class="w-3 h-1.5 bg-zinc-600 rounded-r"></div>
+                    <div class="w-3 h-1.5 bg-zinc-600 rounded-r"></div>
+                    <div class="w-3 h-1.5 bg-zinc-600 rounded-r"></div>
+                </div>
+                <span class="absolute -right-14 top-[62px] font-code-label text-[9px] text-tertiary font-bold">GPIO 13</span>
+                <!-- WiFi antenna indicator -->
+                <div class="absolute -top-2 right-2">
+                    <span class="material-symbols-outlined text-[16px] text-surface-variant" id="wifi-icon">wifi</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hardware Component Row -->
+    <div class="grid grid-cols-3 gap-lg">
+        <!-- Camera Feed -->
+        <div class="bg-surface-container-low border border-outline-variant p-md rounded flex flex-col">
+            <div class="flex justify-between items-center mb-md">
+                <span class="font-code-label text-[11px] text-on-surface-variant uppercase">Optical Sensor</span>
+                <div class="px-2 py-0.5 bg-error/10 border border-error/50 text-error text-[10px] font-bold" id="cam-badge">OFFLINE</div>
+            </div>
+            <div class="relative aspect-[4/3] bg-black border border-outline-variant flex items-center justify-center overflow-hidden rounded">
+                <video class="hidden absolute inset-0 w-full h-full object-cover" id="hardware-video" autoplay playsinline muted></video>
+                <img class="hidden absolute inset-0 w-full h-full object-cover opacity-80" id="demo-wall" alt="Demo wall">
+                <span class="material-symbols-outlined text-surface-variant text-4xl" id="cam-icon">videocam_off</span>
+                <div class="spray-badge" id="spray-overlay">💦 SPRAYING</div>
+            </div>
+        </div>
+
+        <!-- Relay + LED Module -->
+        <div class="bg-surface-container-low border border-outline-variant p-md rounded flex flex-col justify-between">
+            <span class="font-code-label text-[11px] text-on-surface-variant uppercase">Relay &amp; LED Indicator</span>
+            <div class="flex-grow flex flex-col items-center justify-center gap-md py-md">
+                <!-- Big LED -->
+                <div id="ledOuter" class="w-20 h-20 rounded-full border-4 border-zinc-600 flex items-center justify-center transition-all duration-150" style="background:#1a1a1a;">
+                    <div id="ledInner" class="w-12 h-12 rounded-full transition-all duration-150" style="background:#333;"></div>
+                </div>
+                <div class="text-center">
+                    <p class="font-code-label text-on-surface-variant text-xs font-bold" id="relay-status">RELAY: IDLE</p>
+                    <p class="font-code-label text-[9px] text-on-surface-variant opacity-50 mt-1">GPIO 13 → Relay → LED</p>
+                </div>
+                <!-- Terminate Button -->
+                <button id="btn-terminate" onclick="terminateSpray()" class="w-full py-2 bg-red-600 text-white rounded font-code-label font-bold text-[11px] uppercase tracking-widest hover:bg-red-700 active:scale-[0.98] transition-all hidden">⏹ Terminate</button>
+            </div>
+        </div>
+
+        <!-- Pump Control -->
+        <div class="bg-surface-container-low border border-outline-variant p-md rounded flex flex-col justify-between">
+            <span class="font-code-label text-[11px] text-on-surface-variant uppercase">12V Fluid Pump</span>
+            <div class="flex-grow flex flex-col items-center justify-center gap-md py-md">
+                <div class="w-16 h-16 flex items-center justify-center transition-all" id="pump-unit">
+                    <span class="material-symbols-outlined text-5xl text-surface-variant transition-colors" id="pump-icon">water_drop</span>
+                </div>
+                <div class="flex gap-1 hidden" id="pump-drops">
+                    <div class="w-1 h-3 bg-primary rounded-full"></div>
+                    <div class="w-1 h-3 bg-primary rounded-full"></div>
+                    <div class="w-1 h-3 bg-primary rounded-full"></div>
+                    <div class="w-1 h-3 bg-primary rounded-full"></div>
+                </div>
+                <p class="font-code-label text-on-surface-variant text-xs" id="pump-text">IDLE</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wiring Diagram -->
+    <div class="bg-surface-container-low border border-outline-variant p-md rounded-lg">
+        <div class="flex items-center gap-sm mb-md">
+            <span class="material-symbols-outlined text-on-surface-variant text-sm">account_tree</span>
+            <span class="font-code-label text-[11px] text-on-surface-variant uppercase">Hardware Interconnect Diagram</span>
+        </div>
+        <div class="grid grid-cols-2 gap-xl px-xl relative">
+            <div class="flex flex-col gap-3">
+                <div class="flex items-center gap-md"><div class="w-2 h-2 rounded-full bg-tertiary"></div><span class="font-code-label text-[11px]">GPIO 13 (ESP32)</span></div>
+                <div class="flex items-center gap-md"><div class="w-2 h-2 rounded-full bg-error"></div><span class="font-code-label text-[11px]">5V VCC</span></div>
+                <div class="flex items-center gap-md"><div class="w-2 h-2 rounded-full bg-slate-500"></div><span class="font-code-label text-[11px]">GND</span></div>
+                <div class="flex items-center gap-md mt-4"><div class="w-2 h-2 rounded-full bg-error"></div><span class="font-code-label text-[11px]">12V Battery +</span></div>
+                <div class="flex items-center gap-md"><div class="w-2 h-2 rounded-full bg-primary"></div><span class="font-code-label text-[11px]">Pump +</span></div>
+                <div class="flex items-center gap-md"><div class="w-2 h-2 rounded-full bg-slate-500"></div><span class="font-code-label text-[11px]">Pump −</span></div>
+            </div>
+            <div class="flex flex-col gap-3">
+                <div class="flex items-center gap-md justify-end"><span class="font-code-label text-[11px]">Relay IN</span><div class="w-2 h-2 rounded-full bg-tertiary"></div></div>
+                <div class="flex items-center gap-md justify-end"><span class="font-code-label text-[11px]">Relay VCC</span><div class="w-2 h-2 rounded-full bg-error"></div></div>
+                <div class="flex items-center gap-md justify-end"><span class="font-code-label text-[11px]">Relay GND</span><div class="w-2 h-2 rounded-full bg-slate-500"></div></div>
+                <div class="flex items-center gap-md justify-end mt-4"><span class="font-code-label text-[11px]">Relay COM</span><div class="w-2 h-2 rounded-full bg-error"></div></div>
+                <div class="flex items-center gap-md justify-end"><span class="font-code-label text-[11px]">Relay NO</span><div class="w-2 h-2 rounded-full bg-primary"></div></div>
+                <div class="flex items-center gap-md justify-end"><span class="font-code-label text-[11px]">Battery −</span><div class="w-2 h-2 rounded-full bg-slate-500"></div></div>
+            </div>
+            <svg class="absolute inset-0 w-full h-full pointer-events-none" style="z-index:0">
+                <line stroke="#ffb13b" stroke-dasharray="4 2" stroke-width="1" x1="120" x2="280" y1="12" y2="12"/>
+                <line stroke="#ffb4ab" stroke-dasharray="4 2" stroke-width="1" x1="120" x2="280" y1="36" y2="36"/>
+                <line stroke="#859397" stroke-dasharray="4 2" stroke-width="1" x1="120" x2="280" y1="60" y2="60"/>
+                <line stroke="#ffb4ab" stroke-dasharray="4 2" stroke-width="1" x1="120" x2="280" y1="120" y2="120"/>
+                <line stroke="#8aebff" stroke-dasharray="4 2" stroke-width="1" x1="120" x2="280" y1="144" y2="144"/>
+                <line stroke="#859397" stroke-dasharray="4 2" stroke-width="1" x1="120" x2="280" y1="168" y2="168"/>
+            </svg>
+        </div>
+    </div>
+</section>
+
+<!-- RIGHT PANEL (Controls & Diagnostics) -->
+<section class="col-span-4 flex flex-col gap-lg">
+
+    <!-- Workflow Steps -->
+    <div class="bg-surface-container-low border border-outline-variant p-md rounded-lg">
+        <h3 class="font-code-label text-[11px] text-on-surface-variant uppercase mb-md tracking-tighter">Operational Workflow</h3>
+        <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-md text-on-surface-variant transition-all" id="step-1">
+                <div class="w-6 h-6 rounded-full border border-current flex items-center justify-center text-[10px] font-bold shrink-0" id="step-num-1">1</div>
+                <span class="font-code-label text-[11px]">Initialize ESP32 Hardware</span>
+            </div>
+            <div class="flex items-center gap-md text-on-surface-variant opacity-40 transition-all" id="step-2">
+                <div class="w-6 h-6 rounded-full border border-current flex items-center justify-center text-[10px] font-bold shrink-0" id="step-num-2">2</div>
+                <span class="font-code-label text-[11px]">Establish Camera Stream</span>
+            </div>
+            <div class="flex items-center gap-md text-on-surface-variant opacity-40 transition-all" id="step-3">
+                <div class="w-6 h-6 rounded-full border border-current flex items-center justify-center text-[10px] font-bold shrink-0" id="step-num-3">3</div>
+                <span class="font-code-label text-[11px]">Perform Surface Scan</span>
+            </div>
+            <div class="flex items-center gap-md text-on-surface-variant opacity-40 transition-all" id="step-4">
+                <div class="w-6 h-6 rounded-full border border-current flex items-center justify-center text-[10px] font-bold shrink-0" id="step-num-4">4</div>
+                <span class="font-code-label text-[11px]">Select Target Cells</span>
+            </div>
+            <div class="flex items-center gap-md text-on-surface-variant opacity-40 transition-all" id="step-5">
+                <div class="w-6 h-6 rounded-full border border-current flex items-center justify-center text-[10px] font-bold shrink-0" id="step-num-5">5</div>
+                <span class="font-code-label text-[11px]">Execute Spray Protocol</span>
+            </div>
+            <div class="flex items-center gap-md text-on-surface-variant opacity-40 transition-all" id="step-6">
+                <div class="w-6 h-6 rounded-full border border-current flex items-center justify-center text-[10px] font-bold shrink-0" id="step-num-6">6</div>
+                <span class="font-code-label text-[11px]">Log Completion Data</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detection Grid -->
+    <div class="bg-surface-container-low border border-outline-variant p-md rounded-lg">
+        <div class="flex justify-between items-center mb-sm">
+            <span class="font-code-label text-[11px] text-on-surface-variant uppercase">Detection Matrix (8×12)</span>
+            <span class="font-code-label text-primary text-[10px]" id="cell-count">0 cells detected</span>
+        </div>
+        <div class="grid grid-cols-12 gap-[2px] w-full bg-surface-dim border border-outline-variant overflow-hidden p-[2px] rounded" id="detection-grid"></div>
+        <p class="font-code-label text-[9px] text-on-surface-variant opacity-50 mt-2 text-center">Click cells to toggle ON/OFF</p>
+    </div>
+
+    <!-- Progress & Logs -->
+    <div class="bg-surface-container-low border border-outline-variant p-md rounded-lg flex flex-col gap-md flex-1 min-h-0">
+        <div>
+            <div class="flex justify-between mb-1">
+                <span class="font-code-label text-[10px] text-on-surface-variant uppercase">Spray Progress</span>
+                <span class="font-code-label text-[10px] text-primary" id="progress-text">0 / 0</span>
+            </div>
+            <div class="w-full h-2 bg-surface-container-highest rounded-full overflow-hidden">
+                <div class="h-full w-0 bg-gradient-to-r from-primary to-secondary transition-all duration-300 rounded-full" id="progress-bar"></div>
+            </div>
+        </div>
+        <div class="bg-black/80 rounded border border-outline-variant flex-1 min-h-[100px] max-h-[180px] p-sm font-code-label text-[10px] terminal-scroll overflow-y-auto space-y-0.5" id="terminal">
+            <p class="text-on-surface-variant opacity-50">> NEURAL_PAINT_OS v1.0.4 READY</p>
+            <p class="text-on-surface-variant opacity-50">> AWAITING HARDWARE INIT...</p>
+        </div>
+    </div>
+
+    <!-- Control Buttons -->
+    <div class="flex flex-col gap-2">
+        <button class="w-full bg-primary py-2.5 rounded font-code-label font-bold text-on-primary hover:opacity-90 transition-all uppercase tracking-widest text-[11px] active:scale-[0.98]" id="btn-power">🔌 Power On ESP32</button>
+        <div class="grid grid-cols-2 gap-2">
+            <button class="bg-surface-container-highest py-2 rounded font-code-label text-on-surface-variant opacity-40 cursor-not-allowed uppercase tracking-widest text-[10px] transition-all active:scale-[0.98]" id="btn-camera" disabled>📷 Start Camera</button>
+            <button class="bg-surface-container-highest py-2 rounded font-code-label text-on-surface-variant opacity-40 cursor-not-allowed uppercase tracking-widest text-[10px] transition-all active:scale-[0.98]" id="btn-detect" disabled>🔍 Detect Walls</button>
+        </div>
+        <button class="w-full bg-tertiary-container text-on-tertiary-container py-2.5 rounded font-code-label font-bold opacity-40 cursor-not-allowed uppercase tracking-widest text-[11px] transition-all active:scale-[0.98]" id="btn-spray" disabled>💦 Start Spray Cycle</button>
+        <button class="w-full bg-error-container text-on-error-container border border-error/20 py-2 rounded font-code-label font-medium uppercase tracking-widest text-[10px] hover:bg-error transition-all active:scale-[0.98]" id="btn-reset">🔄 Reset System</button>
+    </div>
+</section>
+</main>
+
+<script>
+const grid = document.getElementById('detection-grid');
+const terminal = document.getElementById('terminal');
+
+const led = {
+    wifi: document.getElementById('led-wifi'),
+    cam: document.getElementById('led-cam'),
+    ap: document.getElementById('led-ap'),
+    gpio: document.getElementById('gpio13-pin'),
+    wifiIcon: document.getElementById('wifi-icon')
+};
+
+const hw = {
+    video: document.getElementById('hardware-video'),
+    demoWall: document.getElementById('demo-wall'),
+    camBadge: document.getElementById('cam-badge'),
+    camIcon: document.getElementById('cam-icon'),
+    relay: document.getElementById('relay-light'),
+    relayIcon: document.getElementById('relay-icon'),
+    relayStatus: document.getElementById('relay-status'),
+    pump: document.getElementById('pump-unit'),
+    pumpIcon: document.getElementById('pump-icon'),
+    pumpDrops: document.getElementById('pump-drops'),
+    pumpText: document.getElementById('pump-text'),
+    overlay: document.getElementById('spray-overlay')
+};
+
+const ui = {
+    progressBar: document.getElementById('progress-bar'),
+    progressText: document.getElementById('progress-text'),
+    cellCount: document.getElementById('cell-count'),
+    sysStatus: document.getElementById('sys-status')
+};
+
+const btns = {
+    power: document.getElementById('btn-power'),
+    camera: document.getElementById('btn-camera'),
+    detect: document.getElementById('btn-detect'),
+    spray: document.getElementById('btn-spray'),
+    reset: document.getElementById('btn-reset')
+};
+
+let gridState = []; // 0=empty, 1=unpainted, 2=painted, 3=active
+let unpaintedCells = [];
+let isPowerOn = false, isCamOn = false, isDetected = false, isSpraying = false;
+
+// Initialize 8x12 grid
+for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 12; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'grid-cell';
+        cell.dataset.row = r;
+        cell.dataset.col = c;
+        cell.addEventListener('click', () => toggleCell(r, c));
+        grid.appendChild(cell);
+        gridState.push(0);
+    }
+}
+
+function getCell(r, c) { return grid.children[r * 12 + c]; }
+
+function toggleCell(r, c) {
+    if (isSpraying) return;
+    const idx = r * 12 + c;
+    const cell = getCell(r, c);
+    if (gridState[idx] === 1) { gridState[idx] = 0; cell.className = 'grid-cell'; }
+    else if (gridState[idx] === 0) { gridState[idx] = 1; cell.className = 'grid-cell unpainted'; }
+    updateCellCount();
+}
+
+function updateCellCount() {
+    unpaintedCells = [];
+    for (let i = 0; i < 96; i++) if (gridState[i] === 1) unpaintedCells.push(i);
+    ui.cellCount.textContent = `${unpaintedCells.length} cells detected`;
+    ui.progressText.textContent = `0 / ${unpaintedCells.length}`;
+}
+
+function log(msg, type = 'variant') {
+    const colors = { variant: 'text-gray-500', cyan: 'text-primary', green: 'text-secondary', amber: 'text-tertiary', red: 'text-error' };
+    const p = document.createElement('p');
+    p.className = colors[type] || colors.variant;
+    p.textContent = `> ${msg}`;
+    terminal.appendChild(p);
+    terminal.scrollTop = terminal.scrollHeight;
+}
+
+function setStep(n, state) {
+    for (let i = 1; i <= 6; i++) {
+        const el = document.getElementById(`step-${i}`);
+        const num = document.getElementById(`step-num-${i}`);
+        el.className = 'flex items-center gap-md text-on-surface-variant transition-all';
+        if (i < n) { el.classList.add('text-secondary'); num.className = 'w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-[10px] font-bold text-on-primary shrink-0'; num.textContent = '✓'; }
+        else if (i === n && state === 'done') { el.classList.add('text-secondary'); num.className = 'w-6 h-6 rounded-full bg-secondary/30 border border-secondary flex items-center justify-center text-[10px] font-bold text-secondary shrink-0'; num.textContent = '✓'; }
+        else if (i === n) { el.classList.add('text-primary', 'opacity-100'); num.className = 'w-6 h-6 rounded-full border-2 border-primary flex items-center justify-center text-[10px] font-bold text-primary shrink-0 pulse-glow'; num.textContent = i; }
+        else { el.classList.add('opacity-40'); num.className = 'w-6 h-6 rounded-full border border-current flex items-center justify-center text-[10px] font-bold shrink-0'; num.textContent = i; }
+    }
+}
+
+function activateRelay() {
+    led.gpio.className = 'w-3 h-1.5 rounded-r transition-all duration-300 bg-tertiary glow-amber';
+    hw.relay.className = 'w-16 h-16 rounded-full border-2 border-tertiary flex items-center justify-center transition-all glow-amber';
+    hw.relayIcon.className = 'material-symbols-outlined text-3xl text-tertiary transition-colors';
+    hw.relayStatus.textContent = 'STATE: ON — CLICKED';
+    hw.relayStatus.className = 'font-code-label text-tertiary text-xs font-bold';
+    // LED ON
+    document.getElementById('ledOuter').style.borderColor = '#ef4444';
+    document.getElementById('ledOuter').style.boxShadow = '0 0 20px #ef4444, 0 0 40px #ef4444';
+    document.getElementById('ledOuter').style.background = '#3f1515';
+    document.getElementById('ledInner').style.background = '#ef4444';
+    document.getElementById('ledInner').style.boxShadow = '0 0 25px #ef4444, 0 0 50px #ff0000, inset 0 0 15px #ff6666';
+    // Show terminate button
+    document.getElementById('btn-terminate').classList.remove('hidden');
+}
+
+function deactivateRelay() {
+    led.gpio.className = 'w-3 h-1.5 bg-zinc-600 rounded-r transition-all duration-300';
+    hw.relay.className = 'w-16 h-16 rounded-full border-2 border-outline-variant flex items-center justify-center transition-all';
+    hw.relayIcon.className = 'material-symbols-outlined text-3xl text-surface-variant transition-colors';
+    hw.relayStatus.textContent = 'STATE: OFF';
+    hw.relayStatus.className = 'font-code-label text-on-surface-variant text-xs font-bold';
+    // LED OFF
+    document.getElementById('ledOuter').style.borderColor = '#52525b';
+    document.getElementById('ledOuter').style.boxShadow = 'none';
+    document.getElementById('ledOuter').style.background = '#1a1a1a';
+    document.getElementById('ledInner').style.background = '#333';
+    document.getElementById('ledInner').style.boxShadow = 'none';
+    // Hide terminate button
+    document.getElementById('btn-terminate').classList.add('hidden');
+}
+
+function activatePump() {
+    hw.pump.classList.add('vibrate');
+    hw.pumpIcon.className = 'material-symbols-outlined text-5xl text-primary transition-colors';
+    hw.pumpDrops.classList.remove('hidden');
+    hw.pumpDrops.classList.add('flex');
+    hw.pumpText.textContent = 'SPRAYING...';
+    hw.pumpText.className = 'font-code-label text-primary text-xs font-bold';
+    hw.overlay.classList.add('show');
+}
+
+function deactivatePump() {
+    hw.pump.classList.remove('vibrate');
+    hw.pumpIcon.className = 'material-symbols-outlined text-5xl text-surface-variant transition-colors';
+    hw.pumpDrops.classList.add('hidden');
+    hw.pumpDrops.classList.remove('flex');
+    hw.pumpText.textContent = 'IDLE';
+    hw.pumpText.className = 'font-code-label text-on-surface-variant text-xs';
+    hw.overlay.classList.remove('show');
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// POWER ON
+btns.power.addEventListener('click', () => {
+    isPowerOn = true;
+    led.wifi.className = 'w-2.5 h-2.5 rounded-full bg-secondary glow-cyan transition-all';
+    led.ap.className = 'w-2.5 h-2.5 rounded-full bg-secondary glow-cyan transition-all';
+    led.wifiIcon.className = 'material-symbols-outlined text-[16px] text-primary';
+    log('ESP32-CAM POWERED ON', 'cyan');
+    log('WiFi AP "PaintDrone" started', 'green');
+    log('AP IP: 192.168.4.1', 'green');
+    log('Camera OV2640 initialised (VGA 640×480)', 'green');
+    log('HTTP server on port 80 | Stream on port 81', 'green');
+    ui.sysStatus.textContent = 'STATUS: ONLINE';
+    ui.sysStatus.className = 'font-code-label text-[10px] text-secondary';
+    btns.power.disabled = true;
+    btns.power.classList.add('opacity-40', 'cursor-not-allowed');
+    btns.camera.disabled = false;
+    btns.camera.classList.remove('opacity-40', 'cursor-not-allowed');
+    btns.camera.className = 'bg-surface-container-highest py-2 rounded font-code-label text-primary uppercase tracking-widest text-[10px] hover:bg-surface-variant transition-all active:scale-[0.98] border border-primary/30';
+    setStep(1, 'done');
+});
+
+// CAMERA
+btns.camera.addEventListener('click', async () => {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } } });
+        hw.video.srcObject = stream;
+        hw.video.classList.remove('hidden');
+    } catch(e) {
+        // Fallback: generate a demo wall image on canvas
+        const cvs = document.createElement('canvas');
+        cvs.width = 640; cvs.height = 480;
+        const cx = cvs.getContext('2d');
+        // Draw a simulated wall
+        cx.fillStyle = '#d4c8b8'; cx.fillRect(0, 0, 640, 480);
+        // Add some painted patches
+        cx.fillStyle = '#8b7355'; cx.fillRect(50, 50, 200, 150);
+        cx.fillStyle = '#a0522d'; cx.fillRect(350, 100, 250, 200);
+        cx.fillStyle = '#6b8e23'; cx.fillRect(100, 300, 300, 150);
+        // Add window
+        cx.fillStyle = '#4a90d9'; cx.fillRect(400, 50, 120, 80);
+        cx.strokeStyle = '#fff'; cx.lineWidth = 4;
+        cx.strokeRect(400, 50, 120, 80);
+        cx.beginPath(); cx.moveTo(460, 50); cx.lineTo(460, 130); cx.stroke();
+        cx.beginPath(); cx.moveTo(400, 90); cx.lineTo(520, 90); cx.stroke();
+        hw.demoWall.src = cvs.toDataURL();
+        hw.demoWall.classList.remove('hidden');
+    }
+    isCamOn = true;
+    led.cam.className = 'w-2.5 h-2.5 rounded-full bg-secondary glow-cyan transition-all';
+    hw.camBadge.textContent = '● LIVE';
+    hw.camBadge.className = 'px-2 py-0.5 bg-secondary/10 border border-secondary/50 text-secondary text-[10px] font-bold';
+    hw.camIcon.classList.add('hidden');
+    log('CAMERA STREAM ACTIVE — 30 FPS', 'cyan');
+    log('MJPEG proxy via Flask /video_feed', 'green');
+    btns.camera.disabled = true;
+    btns.camera.classList.add('opacity-40', 'cursor-not-allowed');
+    btns.detect.disabled = false;
+    btns.detect.classList.remove('opacity-40', 'cursor-not-allowed');
+    btns.detect.className = 'bg-surface-container-highest py-2 rounded font-code-label text-primary uppercase tracking-widest text-[10px] hover:bg-surface-variant transition-all active:scale-[0.98] border border-primary/30';
+    setStep(2, 'done');
+});
+
+// DETECT
+btns.detect.addEventListener('click', () => {
+    isDetected = true;
+    log('CAPTURING FRAME FROM ESP32-CAM...', 'cyan');
+    log('Running 6-method detection pipeline...', 'cyan');
+    log('  Adaptive threshold (w=0.30)', 'variant');
+    log('  Relative brightness (w=0.20)', 'variant');
+    log('  Saturation mask (w=0.25)', 'variant');
+    log('  Otsu auto-threshold (w=0.10)', 'variant');
+    log('  LAB lightness (w=0.10)', 'variant');
+    log('  Blurred threshold (w=0.05)', 'variant');
+
+    // Generate detection grid
+    for (let i = 0; i < 96; i++) {
+        const r = Math.floor(i / 12), c = i % 12;
+        const edgeDist = Math.min(r, 7 - r, c, 11 - c);
+        const isUnpainted = edgeDist > 1 ? Math.random() > 0.25 : false;
+        gridState[i] = isUnpainted ? 1 : 0;
+        const cell = getCell(r, c);
+        cell.className = isUnpainted ? 'grid-cell unpainted' : 'grid-cell';
+    }
+    updateCellCount();
+    log(`DETECTION COMPLETE: ${unpaintedCells.length} UNPAINTED CELLS FOUND`, 'amber');
+    log('Click cells to toggle, then Start Spray', 'green');
+    btns.detect.disabled = true;
+    btns.detect.classList.add('opacity-40', 'cursor-not-allowed');
+    btns.spray.disabled = false;
+    btns.spray.classList.remove('opacity-40', 'cursor-not-allowed');
+    btns.spray.className = 'w-full bg-tertiary-container text-on-tertiary-container py-2.5 rounded font-code-label font-bold uppercase tracking-widest text-[11px] transition-all active:scale-[0.98]';
+    setStep(3, 'done');
+    setStep(4, 'done');
+});
+
+// SPRAY
+btns.spray.addEventListener('click', async () => {
+    if (isSpraying || unpaintedCells.length === 0) return;
+    isSpraying = true;
+    const total = unpaintedCells.length;
+    btns.spray.disabled = true;
+    btns.spray.classList.add('opacity-40');
+    log(`SPRAY SEQUENCE STARTED: ${total} CELLS`, 'amber');
+    log('ACTUATING RELAY: GPIO 13 HIGH', 'amber');
+
+    // Activate relay
+    activateRelay();
+    await sleep(400);
+
+    // Activate pump
+    log('12V PUMP ENGAGED — SPRAYING', 'green');
+    activatePump();
+    await sleep(300);
+
+    setStep(5, 'active');
+
+    // Spray each cell
+    for (let i = 0; i < total; i++) {
+        const idx = unpaintedCells[i];
+        const r = Math.floor(idx / 12), c = idx % 12;
+        const cell = getCell(r, c);
+
+        // Mark active
+        cell.className = 'grid-cell active';
+        await sleep(150);
+
+        // Mark painted
+        cell.className = 'grid-cell painted';
+        gridState[idx] = 2;
+
+        // Update progress
+        const pct = Math.round(((i + 1) / total) * 100);
+        ui.progressBar.style.width = `${pct}%`;
+        ui.progressText.textContent = `${i + 1} / ${total}`;
+
+        if (i % 12 === 0) log(`SPRAYING CELL ${i + 1}/${total} (row ${r}, col ${c})`, 'cyan');
+    }
+
+    // Shutdown
+    await sleep(500);
+    deactivatePump();
+    await sleep(200);
+    deactivateRelay();
+
+    log('SPRAY CYCLE COMPLETE', 'green');
+    log(`ALL ${total} CELLS PAINTED SUCCESSFULLY`, 'green');
+    log('SYSTEM RETURNING TO IDLE', 'cyan');
+    ui.sysStatus.textContent = 'STATUS: COMPLETE';
+    ui.sysStatus.className = 'font-code-label text-[10px] text-secondary';
+    setStep(5, 'done');
+    setStep(6, 'done');
+    isSpraying = false;
+});
+
+// TERMINATE
+function terminateSpray() {
+    isSpraying = false;
+    deactivatePump();
+    deactivateRelay();
+    log('EMERGENCY STOP — Spray terminated', 'red');
+    log('GPIO 13 LOW → Relay OFF → LED OFF', 'green');
+}
+
+// RESET
+btns.reset.addEventListener('click', () => { location.reload(); });
+</script>
+</body>
+</html>

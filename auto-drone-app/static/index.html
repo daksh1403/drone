@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paint Drone – Control Panel</title>
+<style>
+/* ── Reset & base ────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: #0f1117;
+  color: #e0e0e0;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Top bar ─────────────────────────── */
+.topbar {
+  background: #161822;
+  border-bottom: 1px solid #2a2d3a;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.topbar h1 { font-size: 1.2rem; font-weight: 600; color: #00e5ff; }
+.topbar .status-group { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
+.status-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #ff4444; transition: background 0.3s;
+}
+.status-dot.online { background: #00e676; }
+
+/* ── Main layout ─────────────────────── */
+.main {
+  display: flex;
+  gap: 20px;
+  padding: 20px 24px;
+  height: calc(100vh - 58px);
+}
+
+/* ── Left panel (camera / image) ─────── */
+.panel-left {
+  flex: 1;
+  background: #161822;
+  border: 1px solid #2a2d3a;
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+.panel-left img, .panel-left canvas {
+  max-width: 100%; max-height: 100%; object-fit: contain;
+}
+#liveStream { width: 100%; height: 100%; object-fit: contain; background: #000; }
+#capturedImg { display: none; width: 100%; height: 100%; object-fit: contain; }
+#gridCanvas {
+  display: none;
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  cursor: pointer;
+}
+
+/* ── Right panel (controls) ──────────── */
+.panel-right {
+  width: 340px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+.card {
+  background: #161822;
+  border: 1px solid #2a2d3a;
+  border-radius: 10px;
+  padding: 18px;
+}
+.card h2 {
+  font-size: 0.95rem;
+  color: #00e5ff;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── Buttons ─────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+  width: 100%;
+  margin-bottom: 8px;
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary { background: #00e5ff; color: #0f1117; }
+.btn-primary:hover:not(:disabled) { opacity: 0.85; }
+.btn-danger { background: #ff4444; color: #fff; }
+.btn-danger:hover:not(:disabled) { opacity: 0.85; }
+.btn-success { background: #00e676; color: #0f1117; }
+.btn-success:hover:not(:disabled) { opacity: 0.85; }
+.btn-secondary { background: #2a2d3a; color: #ccc; }
+.btn-secondary:hover:not(:disabled) { opacity: 0.85; }
+
+/* ── Cell count badge ────────────────── */
+.cell-count {
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: center;
+  color: #00e5ff;
+  margin: 8px 0;
+}
+.cell-count span { font-size: 0.85rem; font-weight: 400; color: #888; }
+
+/* ── Big status display ──────────────── */
+.big-status {
+  text-align: center;
+  padding: 12px;
+  border-radius: 8px;
+  background: #1a1d2b;
+  margin-bottom: 10px;
+}
+.big-status .label { font-size: 0.8rem; color: #888; margin-bottom: 4px; }
+.big-status .value { font-size: 1.6rem; font-weight: 700; color: #00e5ff; }
+.big-status .value.spraying { color: #ff9800; }
+.big-status .value.complete { color: #00e676; }
+
+/* ── Countdown ring ──────────────────── */
+.countdown-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 10px 0;
+}
+.countdown-number {
+  font-size: 4rem;
+  font-weight: 800;
+  color: #00e5ff;
+  text-align: center;
+  min-width: 80px;
+  transition: color 0.3s;
+}
+.countdown-number.urgent { color: #ff4444; }
+.countdown-number.spray { color: #ff9800; font-size: 2.5rem; }
+
+/* ── Progress bar ────────────────────── */
+.progress-bar-container {
+  background: #1a1d2b;
+  border-radius: 6px;
+  height: 24px;
+  overflow: hidden;
+  position: relative;
+  margin-top: 8px;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00e5ff, #00e676);
+  border-radius: 6px;
+  transition: width 0.5s ease;
+  width: 0%;
+}
+.progress-bar-text {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 0 4px rgba(0,0,0,0.8);
+}
+
+/* ── Blink animation for active cell ── */
+@keyframes cellBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.blink { animation: cellBlink 0.6s infinite; }
+
+/* ── Complete message ────────────────── */
+.complete-msg {
+  text-align: center;
+  padding: 20px;
+}
+.complete-msg .icon { font-size: 3rem; margin-bottom: 10px; }
+.complete-msg .text { font-size: 1.2rem; font-weight: 700; color: #00e676; }
+.complete-msg .sub { font-size: 0.9rem; color: #888; margin-top: 6px; }
+
+/* ── Log ────────────────────────── */
+.log-area {
+  background: #0d0f15;
+  border: 1px solid #2a2d3a;
+  border-radius: 6px;
+  padding: 10px;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 0.75rem;
+  color: #888;
+  max-height: 140px;
+  overflow-y: auto;
+  line-height: 1.5;
+}
+.log-area .log-info  { color: #00e5ff; }
+.log-area .log-ok    { color: #00e676; }
+.log-area .log-warn  { color: #ff9800; }
+.log-area .log-error { color: #ff4444; }
+</style>
+</head>
+<body>
+
+<!-- ════════════════ TOP BAR ════════════════ -->
+<div class="topbar">
+  <h1>🎨 Paint Drone – Control Panel</h1>
+  <div class="status-group">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Checking ESP32-CAM…</span>
+  </div>
+</div>
+
+<!-- ════════════════ MAIN LAYOUT ════════════════ -->
+<div class="main">
+
+  <!-- ── Left: Camera / Captured Image / Grid ── -->
+  <div class="panel-left" id="panelLeft">
+    <img id="liveStream" src="/video_feed?t=1" alt="Live Feed"
+         style="max-width:100%;max-height:100%;object-fit:contain;display:block;">
+    <img id="capturedImg" alt="Captured" style="display:none;max-width:100%;max-height:100%;object-fit:contain;">
+    <canvas id="gridCanvas" style="display:none;"></canvas>
+  </div>
+
+  <!-- ── Right: Controls ── -->
+  <div class="panel-right">
+
+    <!-- MODE: LIVE -->
+    <div id="sectionLive">
+      <div class="card">
+        <h2>Detection Controls</h2>
+
+        <!-- Sensitivity Slider -->
+        <div style="margin-bottom:12px;">
+          <label style="font-size:0.8rem;color:#888;">Sensitivity: <span id="sensVal">50</span></label>
+          <input type="range" id="sensSlider" min="0" max="100" value="50"
+                 style="width:100%;margin-top:4px;"
+                 oninput="document.getElementById('sensVal').textContent=this.value">
+        </div>
+
+        <!-- View Mode Buttons -->
+        <button class="btn btn-primary" id="btnLiveDetect"
+                onclick="toggleLiveDetect()">🔴 Live Detection</button>
+        <p style="font-size:0.75rem;color:#666;text-align:center;margin:2px 0 8px;">
+          Grid overlay on live camera
+        </p>
+
+        <button class="btn btn-primary" id="btnDebug"
+                onclick="toggleDebug()" style="background:#7c3aed;">🔬 Debug View</button>
+        <p style="font-size:0.75rem;color:#666;text-align:center;margin:2px 0 8px;">
+          Shows all 6 detection methods
+        </p>
+
+        <button class="btn btn-primary" id="btnCapture"
+                onclick="doCapture()">📷 Capture &amp; Detect</button>
+        <p style="font-size:0.75rem;color:#666;text-align:center;margin:2px 0 0;">
+          Single frame snapshot
+        </p>
+      </div>
+
+      <!-- Detection Stats -->
+      <div class="card" id="statsCard" style="display:none;">
+        <h2>Detection Stats</h2>
+        <div style="font-family:monospace;font-size:0.75rem;color:#888;line-height:1.8;">
+          <div>White cells: <span id="statWhite" style="color:#00e676;">0</span>/96</div>
+          <div>Dark cells: <span id="statDark" style="color:#666;">0</span>/96</div>
+          <div>Sensitivity: <span id="statSens" style="color:#ffeb3b;">50</span></div>
+        </div>
+      </div>
+
+      <!-- Relay / LED Simulation -->
+      <div class="card" id="relayCard" style="display:none;">
+        <h2>Relay Simulation</h2>
+        <div style="text-align:center;">
+          <!-- LED Circle -->
+          <div id="ledCircle" style="width:80px;height:80px;border-radius:50%;background:#333;border:3px solid #555;margin:10px auto;transition:all 0.15s;display:flex;align-items:center;justify-content:center;">
+            <div id="ledInner" style="width:50px;height:50px;border-radius:50%;background:#444;transition:all 0.15s;"></div>
+          </div>
+          <div id="relayStatus" style="font-family:monospace;font-size:0.8rem;color:#888;margin-top:8px;">RELAY: IDLE</div>
+          <!-- GPIO Indicator -->
+          <div style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;">
+            <span style="font-family:monospace;font-size:0.65rem;color:#666;">GPIO13</span>
+            <div id="gpioPin" style="width:10px;height:10px;border-radius:2px;background:#444;transition:all 0.1s;"></div>
+            <span style="color:#555;">→</span>
+            <span style="font-family:monospace;font-size:0.65rem;color:#666;">Relay</span>
+            <div id="relayPin" style="width:10px;height:10px;border-radius:2px;background:#444;transition:all 0.1s;"></div>
+            <span style="color:#555;">→</span>
+            <span style="font-family:monospace;font-size:0.65rem;color:#666;">Pump</span>
+            <div id="pumpPin" style="width:10px;height:10px;border-radius:2px;background:#444;transition:all 0.1s;"></div>
+          </div>
+          <!-- Signal Log -->
+          <div id="signalLog" style="margin-top:10px;background:#111;border-radius:4px;padding:6px;max-height:80px;overflow-y:auto;font-family:monospace;font-size:0.6rem;text-align:left;color:#0f0;"></div>
+          <!-- Terminate Button -->
+          <button onclick="terminateSpray()" style="margin-top:10px;width:100%;padding:8px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:0.8rem;">⏹ Terminate</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODE: GRID -->
+    <div id="sectionGrid" style="display:none;">
+      <div class="card">
+        <h2>Grid Selection</h2>
+        <div class="cell-count">
+          <span id="cellCountNum">0</span><br>
+          <span>cells selected</span>
+        </div>
+        <p style="font-size:0.8rem;color:#888;text-align:center;margin-bottom:12px;">
+          Click cells on the image to toggle ON/OFF
+        </p>
+        <button class="btn btn-success" id="btnStartSpray"
+                onclick="startSpray()" disabled>
+          🚀 Start Auto Spray
+        </button>
+        <button class="btn btn-secondary" onclick="resetToLive()">
+          ↩ Reset
+        </button>
+      </div>
+    </div>
+
+    <!-- MODE: SPRAYING -->
+    <div id="sectionSpray" style="display:none;">
+      <div class="card">
+        <h2>Spray Progress</h2>
+        <div class="big-status" id="sprayStatus">
+          <div class="label">Current Action</div>
+          <div class="value" id="sprayStatusText">Starting…</div>
+        </div>
+        <div class="countdown-container">
+          <div class="countdown-number" id="countdownDisplay">&nbsp;</div>
+        </div>
+        <div class="progress-bar-container">
+          <div class="progress-bar-fill" id="progressFill"></div>
+          <div class="progress-bar-text" id="progressText">0 / 0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODE: COMPLETE -->
+    <div id="sectionComplete" style="display:none;">
+      <div class="card">
+        <div class="complete-msg">
+          <div class="icon">✅</div>
+          <div class="text">Painting Complete!</div>
+          <div class="sub" id="completeSubtext">0 cells painted</div>
+        </div>
+        <button class="btn btn-primary" onclick="resetToLive()" style="margin-top:12px;">
+          🔄 Start New Session
+        </button>
+      </div>
+    </div>
+
+    <!-- Log -->
+    <div class="card" style="flex:1;min-height:0;">
+      <h2>Event Log</h2>
+      <div class="log-area" id="logArea"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+ *  STATE
+ * ============================================================ */
+let grid = [];               // 8×12 boolean grid
+let capturedImageB64 = "";   // Base64 JPEG of captured frame
+let cellCount = 0;           // Number of selected cells
+let imgNatW = 0, imgNatH = 0; // Natural dimensions of captured image
+let countdownTimer = null;
+
+/* ============================================================
+ *  ESP32 PING (connection status)
+ * ============================================================ */
+const statusDot  = document.getElementById("statusDot");
+const statusText = document.getElementById("statusText");
+
+/**
+ * Ping the Flask backend's /ping endpoint every 3 seconds.
+ * Flask checks ESP32 connectivity by monitoring the active
+ * video stream (or a direct ping when no stream is running).
+ * We go through Flask instead of hitting the ESP32 directly
+ * because the ESP32's single-threaded WebServer can't respond
+ * to /ping while it's busy streaming MJPEG frames.
+ */
+async function pingESP32() {
+  try {
+    const res = await fetch("/ping", {
+      signal: AbortSignal.timeout(3000)
+    });
+    if (res.ok) {
+      statusDot.classList.add("online");
+      statusText.textContent = "ESP32-CAM Online";
+    } else { throw new Error(); }
+  } catch {
+    statusDot.classList.remove("online");
+    statusText.textContent = "ESP32-CAM Offline";
+  }
+}
+// Ping immediately and then every 3 seconds
+pingESP32();
+setInterval(pingESP32, 3000);
+
+/* ============================================================
+ *  LOGGING
+ * ============================================================ */
+const logArea = document.getElementById("logArea");
+
+function log(msg, cls = "") {
+  const ts = new Date().toLocaleTimeString();
+  const line = document.createElement("div");
+  if (cls) line.className = cls;
+  line.textContent = `[${ts}] ${msg}`;
+  logArea.appendChild(line);
+  logArea.scrollTop = logArea.scrollHeight;
+}
+
+/* ============================================================
+ *  MODE SWITCHING
+ * ============================================================ */
+function showSection(name) {
+  document.getElementById("sectionLive").style.display     = name === "live"     ? "block" : "none";
+  document.getElementById("sectionGrid").style.display     = name === "grid"     ? "block" : "none";
+  document.getElementById("sectionSpray").style.display    = name === "spray"    ? "block" : "none";
+  document.getElementById("sectionComplete").style.display = name === "complete" ? "block" : "none";
+}
+
+/* ============================================================
+ *  RESET
+ * ============================================================ */
+function resetToLive() {
+  if (blinkInterval) { clearInterval(blinkInterval); blinkInterval = null; }
+  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+
+  grid = [];
+  capturedImageB64 = "";
+  cellCount = 0;
+  manualCells.clear();
+  completedCells.clear();
+
+  // Restart camera feed with fresh timestamp
+  const liveImg = document.getElementById("liveStream");
+  liveImg.src = "/video_feed?t=" + Date.now();
+  liveImg.style.display = "block";
+  document.getElementById("capturedImg").style.display = "none";
+  document.getElementById("gridCanvas").style.display = "none";
+
+  document.getElementById("btnCapture").disabled = false;
+  document.getElementById("btnCapture").textContent = "📷 Capture & Detect";
+
+  const btnLD = document.getElementById("btnLiveDetect");
+  btnLD.textContent = "🔴 Live Detection";
+  btnLD.style.background = "";
+  liveDetectActive = false;
+
+  const btnD = document.getElementById("btnDebug");
+  btnD.textContent = "🔬 Debug View";
+  btnD.style.background = "#7c3aed";
+  debugActive = false;
+
+  document.getElementById("statsCard").style.display = "none";
+  showSection("live");
+  log("Reset — camera feed restarted", "log-info");
+}
+
+/* ============================================================
+ *  LIVE DETECTION MODE
+ * ============================================================ */
+let liveDetectActive = false;
+let debugActive = false;
+
+function getSensitivity() {
+  return parseInt(document.getElementById("sensSlider").value);
+}
+
+function toggleLiveDetect() {
+  const liveImg = document.getElementById("liveStream");
+  const btn = document.getElementById("btnLiveDetect");
+
+  if (debugActive) toggleDebug();
+
+  if (!liveDetectActive) {
+    liveImg.src = "/live_detect?sensitivity=" + getSensitivity() + "&t=" + Date.now();
+    liveImg.style.display = "block";
+    document.getElementById("capturedImg").style.display = "none";
+    document.getElementById("gridCanvas").style.display = "none";
+    btn.textContent = "⏹ Stop Detection";
+    btn.style.background = "#dc2626";
+    liveDetectActive = true;
+    document.getElementById("statsCard").style.display = "block";
+    log("Live detection started", "log-ok");
+  } else {
+    liveImg.src = "/video_feed?t=" + Date.now();
+    btn.textContent = "🔴 Live Detection";
+    btn.style.background = "";
+    liveDetectActive = false;
+    document.getElementById("statsCard").style.display = "none";
+    log("Live detection stopped — camera feed resumed", "log-info");
+  }
+}
+
+function toggleDebug() {
+  const liveImg = document.getElementById("liveStream");
+  const btn = document.getElementById("btnDebug");
+
+  if (liveDetectActive) toggleLiveDetect();
+
+  if (!debugActive) {
+    liveImg.src = "/debug_methods?sensitivity=" + getSensitivity() + "&t=" + Date.now();
+    liveImg.style.display = "block";
+    document.getElementById("capturedImg").style.display = "none";
+    document.getElementById("gridCanvas").style.display = "none";
+    btn.textContent = "⏹ Stop Debug";
+    btn.style.background = "#dc2626";
+    debugActive = true;
+    document.getElementById("statsCard").style.display = "block";
+    log("Debug view started", "log-ok");
+  } else {
+    liveImg.src = "/video_feed?t=" + Date.now();
+    btn.textContent = "🔬 Debug View";
+    btn.style.background = "#7c3aed";
+    debugActive = false;
+    document.getElementById("statsCard").style.display = "none";
+    log("Debug view stopped — camera feed resumed", "log-info");
+  }
+}
+
+document.getElementById("sensSlider").addEventListener("input", function() {
+  document.getElementById("sensVal").textContent = this.value;
+  document.getElementById("statSens").textContent = this.value;
+});
+
+/* ============================================================
+ *  CAPTURE & DETECT
+ * ============================================================ */
+async function doCapture() {
+  const btn = document.getElementById("btnCapture");
+  btn.disabled = true;
+  btn.textContent = "⏳ Capturing…";
+  log("Capturing frame…", "log-info");
+
+  try {
+    const res = await fetch("/capture?sensitivity=" + getSensitivity(), { method: "POST" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    if (data.error) throw new Error(data.error);
+
+    capturedImageB64 = data.image;
+    grid = data.grid;
+    cellCount = data.cell_count;
+
+    log(`Capture OK – ${cellCount} cells detected`, "log-ok");
+
+    // Switch to grid mode
+    showGridMode();
+  } catch (e) {
+    log(`Capture failed: ${e.message}`, "log-error");
+    btn.disabled = false;
+    btn.textContent = "📷 Capture & Detect";
+  }
+}
+
+/* ============================================================
+ *  GRID MODE
+ * ============================================================ */
+function showGridMode() {
+  showSection("grid");
+  updateCellCount();
+
+  // Hide live stream, show captured image
+  document.getElementById("liveStream").style.display  = "none";
+  const cImg = document.getElementById("capturedImg");
+  cImg.src = "data:image/jpeg;base64," + capturedImageB64;
+  cImg.style.display = "block";
+
+  // Wait for image to load so we know its natural size
+  cImg.onload = () => {
+    imgNatW = cImg.naturalWidth;
+    imgNatH = cImg.naturalHeight;
+    setupGridCanvas();
+  };
+}
+
+function setupGridCanvas() {
+  const canvas = document.getElementById("gridCanvas");
+  const panel  = document.getElementById("panelLeft");
+  canvas.width  = panel.clientWidth;
+  canvas.height = panel.clientHeight;
+  canvas.style.display = "block";
+  drawGrid();
+}
+
+/**
+ * Draw the 8×12 grid overlay on the canvas.
+ * Active cells are green (or yellow if manually toggled),
+ * completed cells are blue, inactive cells are dark.
+ */
+let manualCells = new Set();   // Track manually toggled cells
+let completedCells = new Set(); // Track sprayed cells, stores "r,c"
+
+function drawGrid(blinkCell = null) {
+  const canvas = document.getElementById("gridCanvas");
+  const ctx    = canvas.getContext("2d");
+  const cW     = canvas.width;
+  const cH     = canvas.height;
+
+  // Compute where the image is actually rendered inside the panel
+  const img    = document.getElementById("capturedImg");
+  const imgRect = getImageRect(img, cW, cH);
+
+  ctx.clearRect(0, 0, cW, cH);
+
+  const cellW = imgRect.w / 12;
+  const cellH = imgRect.h / 8;
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 12; c++) {
+      const x = imgRect.x + c * cellW;
+      const y = imgRect.y + r * cellH;
+      const key = `${r},${c}`;
+
+      if (completedCells.has(key)) {
+        // Completed cell – blue
+        ctx.fillStyle = "rgba(33, 150, 243, 0.45)";
+        ctx.fillRect(x, y, cellW, cellH);
+      } else if (grid[r] && grid[r][c]) {
+        // Active cell
+        if (blinkCell && blinkCell[0] === r && blinkCell[1] === c) {
+          // Currently active cell – blink handled by opacity
+          ctx.fillStyle = "rgba(255, 152, 0, 0.5)";
+        } else if (manualCells.has(key)) {
+          ctx.fillStyle = "rgba(255, 235, 59, 0.35)";  // Yellow = manual
+        } else {
+          ctx.fillStyle = "rgba(0, 230, 118, 0.30)";   // Green = auto
+        }
+        ctx.fillRect(x, y, cellW, cellH);
+      } else {
+        // Inactive cell – dark overlay
+        ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+        ctx.fillRect(x, y, cellW, cellH);
+      }
+
+      // Grid lines
+      ctx.strokeStyle = "rgba(255,255,255,0.2)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, cellW, cellH);
+    }
+  }
+
+  // Draw index numbers on active cells
+  ctx.font = `bold ${Math.max(10, cellH * 0.35)}px Segoe UI, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  let idx = 1;
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 12; c++) {
+      if (grid[r] && grid[r][c]) {
+        const x = imgRect.x + c * cellW + cellW / 2;
+        const y = imgRect.y + r * cellH + cellH / 2;
+        const key = `${r},${c}`;
+        if (completedCells.has(key)) {
+          ctx.fillStyle = "#fff";
+        } else {
+          ctx.fillStyle = "#fff";
+        }
+        ctx.shadowColor = "rgba(0,0,0,0.7)";
+        ctx.shadowBlur = 3;
+        ctx.fillText(idx, x, y);
+        ctx.shadowBlur = 0;
+        idx++;
+      }
+    }
+  }
+}
+
+/**
+ * Get the actual rendered rectangle of the image inside its container,
+ * taking into account object-fit: contain.
+ */
+function getImageRect(img, containerW, containerH) {
+  if (!imgNatW || !imgNatH) return { x: 0, y: 0, w: containerW, h: containerH };
+  const scale = Math.min(containerW / imgNatW, containerH / imgNatH);
+  const w = imgNatW * scale;
+  const h = imgNatH * scale;
+  const x = (containerW - w) / 2;
+  const y = (containerH - h) / 2;
+  return { x, y, w, h };
+}
+
+/* ── Grid click handler (toggle cells) ── */
+document.getElementById("gridCanvas").addEventListener("click", (e) => {
+  // Only allow toggling in grid mode
+  if (document.getElementById("sectionGrid").style.display === "none") return;
+
+  const canvas = document.getElementById("gridCanvas");
+  const rect   = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  const img     = document.getElementById("capturedImg");
+  const imgRect = getImageRect(img, canvas.width, canvas.height);
+
+  // Check if click is inside the image area
+  if (mx < imgRect.x || mx > imgRect.x + imgRect.w) return;
+  if (my < imgRect.y || my > imgRect.y + imgRect.h) return;
+
+  const cellW = imgRect.w / 12;
+  const cellH = imgRect.h / 8;
+  const c = Math.min(11, Math.floor((mx - imgRect.x) / cellW));
+  const r = Math.min(7,  Math.floor((my - imgRect.y) / cellH));
+
+  // Toggle the cell
+  grid[r][c] = !grid[r][c];
+  manualCells.add(`${r},${c}`);
+  updateCellCount();
+  drawGrid();
+
+  log(`Toggled cell (${r},${c}) → ${grid[r][c] ? "ON" : "OFF"}`, "log-info");
+});
+
+/* Resize handler – redraw grid if window resizes */
+window.addEventListener("resize", () => {
+  const canvas = document.getElementById("gridCanvas");
+  if (canvas.style.display !== "none") {
+    const panel = document.getElementById("panelLeft");
+    canvas.width  = panel.clientWidth;
+    canvas.height = panel.clientHeight;
+    drawGrid();
+  }
+});
+
+function updateCellCount() {
+  cellCount = 0;
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 12; c++)
+      if (grid[r] && grid[r][c]) cellCount++;
+
+  document.getElementById("cellCountNum").textContent = cellCount;
+  document.getElementById("btnStartSpray").disabled = (cellCount === 0);
+}
+
+/* ============================================================
+ *  SPRAY SEQUENCE
+ * ============================================================ */
+function startSpray() {
+  // Collect active cells in row-major order
+  const cells = [];
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 12; c++)
+      if (grid[r] && grid[r][c])
+        cells.push([r, c]);
+
+  if (cells.length === 0) return;
+
+  completedCells.clear();
+  log(`Starting spray sequence: ${cells.length} cells`, "log-ok");
+  showSection("spray");
+
+  // Update progress bar initial state
+  document.getElementById("progressFill").style.width = "0%";
+  document.getElementById("progressText").textContent = `0 / ${cells.length}`;
+
+  // Open SSE connection via fetch + ReadableStream
+  // (We use fetch instead of EventSource because we need POST)
+  fetch("/spray_sequence", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cells: cells })
+  }).then(response => {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    function read() {
+      reader.read().then(({ done, value }) => {
+        if (done) return;
+        buffer += decoder.decode(value, { stream: true });
+
+        // Parse SSE events (lines starting with "data: ")
+        const lines = buffer.split("\n");
+        buffer = "";
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const evt = JSON.parse(line.substring(6));
+              handleSprayEvent(evt, cells);
+            } catch (e) { /* ignore parse errors on partial chunks */ }
+          } else {
+            buffer += line + "\n";  // Keep incomplete lines
+          }
+        }
+        read();  // Continue reading
+      });
+    }
+    read();
+  }).catch(e => {
+    log(`SSE connection error: ${e.message}`, "log-error");
+  });
+}
+
+let blinkInterval = null;  // For blinking the active cell
+
+function handleSprayEvent(evt, cells) {
+  const statusEl   = document.getElementById("sprayStatusText");
+  const countdownEl = document.getElementById("countdownDisplay");
+  const progressFill = document.getElementById("progressFill");
+  const progressText = document.getElementById("progressText");
+  const total = cells.length;
+
+  switch (evt.status) {
+    case "moving": {
+      const cellNum = evt.cell;
+      const r = evt.row, c = evt.col;
+      log(`Moving to cell ${cellNum}/${evt.total} (row ${r}, col ${c})`, "log-info");
+
+      statusEl.textContent = `Move to Cell ${cellNum} of ${total}`;
+      statusEl.className = "value";
+
+      // Start blinking the target cell on the grid
+      if (blinkInterval) clearInterval(blinkInterval);
+      let blinkOn = true;
+      blinkInterval = setInterval(() => {
+        blinkOn = !blinkOn;
+        drawGrid(blinkOn ? [r, c] : null);
+      }, 400);
+
+      // 3-second countdown
+      let countdown = 3;
+      countdownEl.textContent = countdown;
+      countdownEl.className = "countdown-number";
+      if (countdownTimer) clearInterval(countdownTimer);
+      countdownTimer = setInterval(() => {
+        countdown--;
+        if (countdown > 0) {
+          countdownEl.textContent = countdown;
+          if (countdown === 1) countdownEl.classList.add("urgent");
+        } else {
+          clearInterval(countdownTimer);
+          countdownTimer = null;
+        }
+      }, 1000);
+      break;
+    }
+
+    case "spraying": {
+      log(`Spraying cell ${evt.cell}…`, "log-warn");
+      statusEl.textContent = "SPRAYING";
+      statusEl.className = "value spraying";
+      countdownEl.textContent = "";
+      countdownEl.className = "countdown-number spray";
+      showRelayCard();
+      blinkRelay(evt.cell, total);
+      if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+      break;
+    }
+
+    case "done": {
+      const cellIdx = evt.cell - 1;  // 0-based
+      if (cellIdx >= 0 && cellIdx < cells.length) {
+        const [r, c] = cells[cellIdx];
+        completedCells.add(`${r},${c}`);
+      }
+      if (blinkInterval) { clearInterval(blinkInterval); blinkInterval = null; }
+
+      log(`Cell ${evt.cell} done ✓`, "log-ok");
+      countdownEl.textContent = "✓";
+      countdownEl.className = "countdown-number";
+      statusEl.textContent = `Cell ${evt.cell} Complete`;
+      statusEl.className = "value";
+
+      // Update progress
+      const pct = Math.round((evt.cell / total) * 100);
+      progressFill.style.width = pct + "%";
+      progressText.textContent = `${evt.cell} / ${total}`;
+
+      drawGrid();
+      break;
+    }
+
+    case "complete": {
+      if (blinkInterval) { clearInterval(blinkInterval); blinkInterval = null; }
+      if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+
+      log(`All ${evt.total} cells painted! ✅`, "log-ok");
+      document.getElementById("completeSubtext").textContent =
+        `${evt.total} cells painted successfully`;
+
+      // Brief delay then show complete screen
+      setTimeout(() => showSection("complete"), 800);
+      break;
+    }
+  }
+}
+
+/* ============================================================
+ *  RESET
+ * ============================================================ */
+function resetToLive() {
+  // Stop any timers
+  if (blinkInterval) { clearInterval(blinkInterval); blinkInterval = null; }
+  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+
+  grid = [];
+  capturedImageB64 = "";
+  cellCount = 0;
+  manualCells.clear();
+  completedCells.clear();
+
+  // Restore live feed
+  const liveImg = document.getElementById("liveStream");
+  liveImg.src = "/video_feed";
+  liveImg.style.display = "block";
+  document.getElementById("capturedImg").style.display = "none";
+  document.getElementById("gridCanvas").style.display = "none";
+
+  // Reset buttons
+  const btnCapture = document.getElementById("btnCapture");
+  btnCapture.disabled = false;
+  btnCapture.textContent = "📷 Capture & Detect";
+
+  const btnLiveDetect = document.getElementById("btnLiveDetect");
+  btnLiveDetect.textContent = "🔴 Live Detection";
+  btnLiveDetect.style.background = "";
+  liveDetectActive = false;
+
+  const btnDebug = document.getElementById("btnDebug");
+  btnDebug.textContent = "🔬 Debug View";
+  btnDebug.style.background = "#7c3aed";
+  debugActive = false;
+
+  document.getElementById("statsCard").style.display = "none";
+  document.getElementById("relayCard").style.display = "none";
+  resetRelay();
+  showSection("live");
+  log("Session reset – live feed active", "log-info");
+}
+
+/* ── Initial state ── */
+showSection("live");
+log("Paint Drone Control Panel loaded", "log-ok");
+
+/* ============================================================
+ *  RELAY / LED SIMULATION — blinks after detection
+ * ============================================================ */
+function blinkRelay(cellNum, total) {
+  const led = document.getElementById("ledCircle");
+  const ledInner = document.getElementById("ledInner");
+  const gpio = document.getElementById("gpioPin");
+  const relay = document.getElementById("relayPin");
+  const pump = document.getElementById("pumpPin");
+  const status = document.getElementById("relayStatus");
+  const sigLog = document.getElementById("signalLog");
+
+  // Step 1: GPIO 13 HIGH
+  gpio.style.background = "#f59e0b";
+  gpio.style.boxShadow = "0 0 6px #f59e0b";
+  logSignal("[GPIO 13] HIGH → Relay IN", "w");
+
+  setTimeout(() => {
+    // Step 2: Relay ON
+    relay.style.background = "#f59e0b";
+    relay.style.boxShadow = "0 0 6px #f59e0b";
+    status.textContent = "RELAY: ON";
+    status.style.color = "#f59e0b";
+    logSignal("[RELAY] CLICKED ON", "w");
+
+    setTimeout(() => {
+      // Step 3: LED ON + Pump ON
+      led.style.background = "#991b1b";
+      led.style.borderColor = "#ef4444";
+      led.style.boxShadow = "0 0 20px #ef4444, 0 0 40px #ef4444, inset 0 0 15px #ef4444";
+      ledInner.style.background = "#ef4444";
+      ledInner.style.boxShadow = "0 0 25px #ef4444, 0 0 50px #ff0000";
+      pump.style.background = "#ef4444";
+      pump.style.boxShadow = "0 0 6px #ef4444";
+      status.textContent = "SPRAYING: Cell " + cellNum + "/" + total;
+      status.style.color = "#ef4444";
+      logSignal("[PUMP] 12V activated", "w");
+
+      setTimeout(() => {
+        // Step 4: LED OFF + Pump OFF
+        led.style.background = "#333";
+        led.style.borderColor = "#555";
+        led.style.boxShadow = "none";
+        ledInner.style.background = "#444";
+        ledInner.style.boxShadow = "none";
+        pump.style.background = "#444";
+        pump.style.boxShadow = "none";
+        logSignal("[PUMP] Spray complete", "g");
+
+        setTimeout(() => {
+          // Step 5: Relay OFF
+          relay.style.background = "#444";
+          relay.style.boxShadow = "none";
+          status.textContent = "RELAY: OFF";
+          status.style.color = "#888";
+          logSignal("[RELAY] CLICKED OFF", "g");
+
+          setTimeout(() => {
+            // Step 6: GPIO 13 LOW
+            gpio.style.background = "#444";
+            gpio.style.boxShadow = "none";
+            logSignal("[GPIO 13] LOW → Idle", "g");
+          }, 100);
+        }, 150);
+      }, 800);
+    }, 100);
+  }, 100);
+}
+
+function terminateSpray() {
+  const led = document.getElementById("ledCircle");
+  const ledInner = document.getElementById("ledInner");
+  const gpio = document.getElementById("gpioPin");
+  const relay = document.getElementById("relayPin");
+  const pump = document.getElementById("pumpPin");
+  const status = document.getElementById("relayStatus");
+  const sigLog = document.getElementById("signalLog");
+
+  // Force everything OFF
+  led.style.background = "#333";
+  led.style.borderColor = "#555";
+  led.style.boxShadow = "none";
+  ledInner.style.background = "#444";
+  ledInner.style.boxShadow = "none";
+  gpio.style.background = "#444";
+  gpio.style.boxShadow = "none";
+  relay.style.background = "#444";
+  relay.style.boxShadow = "none";
+  pump.style.background = "#444";
+  pump.style.boxShadow = "none";
+  status.textContent = "RELAY: TERMINATED";
+  status.style.color = "#ef4444";
+  logSignal("[EMERGENCY] Spray terminated by user", "r");
+  logSignal("[GPIO 13] LOW → Safe", "g");
+  logSignal("[RELAY] Force OFF", "g");
+
+  // Reset spray state
+  sprayInProgress = false;
+}
+
+function logSignal(msg, color) {
+  const el = document.getElementById("signalLog");
+  if (!el) return;
+  const t = new Date().toLocaleTimeString();
+  const c = { "w": "#f59e0b", "g": "#22c55e", "r": "#ef4444" };
+  el.innerHTML += '<div style="color:' + (c[color] || '#0f0') + '">[' + t + '] ' + msg + '</div>';
+  el.scrollTop = el.scrollHeight;
+}
+
+function showRelayCard() {
+  document.getElementById("relayCard").style.display = "block";
+}
+
+function resetRelay() {
+  const led = document.getElementById("ledCircle");
+  const ledInner = document.getElementById("ledInner");
+  const gpio = document.getElementById("gpioPin");
+  const relay = document.getElementById("relayPin");
+  const pump = document.getElementById("pumpPin");
+  const status = document.getElementById("relayStatus");
+  led.style.background = "#333"; led.style.borderColor = "#555"; led.style.boxShadow = "none";
+  ledInner.style.background = "#444"; ledInner.style.boxShadow = "none";
+  gpio.style.background = "#444"; gpio.style.boxShadow = "none";
+  relay.style.background = "#444"; relay.style.boxShadow = "none";
+  pump.style.background = "#444"; pump.style.boxShadow = "none";
+  status.textContent = "RELAY: IDLE"; status.style.color = "#888";
+  document.getElementById("signalLog").innerHTML = "";
+}
+
+let sprayInProgress = false;
+
+// Auto-start live camera feed on page load
+setTimeout(() => {
+  const liveImg = document.getElementById("liveStream");
+  liveImg.src = "/video_feed";
+  liveImg.style.display = "block";
+  log("Camera feed connected", "log-info");
+}, 500);
+</script>
+</body>
+</html>
