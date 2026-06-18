@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomous Drone Painting System</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Header ── */
+        header {
+            background: #0f3460;
+            padding: 18px 30px;
+            text-align: center;
+            box-shadow: 0 2px 12px rgba(0,0,0,.4);
+        }
+        header h1 { font-size: 1.6rem; letter-spacing: 1px; }
+        header .subtitle { font-size: .8rem; opacity: .65; margin-top: 2px; }
+
+        /* ── Status bar ── */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 28px;
+            background: #16213e;
+            padding: 8px 20px;
+            font-size: .85rem;
+        }
+        .status-item { display: flex; align-items: center; gap: 6px; }
+        .dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+        .dot.green { background: #00e676; box-shadow: 0 0 6px #00e676; }
+        .dot.red   { background: #ff1744; box-shadow: 0 0 6px #ff1744; }
+
+        /* ── Main ── */
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            gap: 16px;
+        }
+
+        /* ── Buttons ── */
+        .btn {
+            padding: 10px 22px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: .9rem;
+            font-weight: 600;
+            transition: background .2s, transform .1s;
+        }
+        .btn:active { transform: scale(.97); }
+        .btn-primary   { background: #e94560; color: #fff; }
+        .btn-primary:hover { background: #d63b56; }
+        .btn-secondary { background: #0f3460; color: #fff; }
+        .btn-secondary:hover { background: #0d2d52; }
+        .btn-danger    { background: #b71c1c; color: #fff; }
+        .btn-danger:hover { background: #9a1616; }
+        .btn-success   { background: #2e7d32; color: #fff; }
+        .btn-success:hover { background: #256b29; }
+        .btn:disabled  { opacity: .45; cursor: not-allowed; }
+
+        /* ── Panels ── */
+        .panel {
+            background: #16213e;
+            border-radius: 10px;
+            padding: 18px 22px;
+            width: 100%;
+            max-width: 900px;
+        }
+        .panel h3 { margin-bottom: 10px; font-size: 1rem; color: #e94560; }
+
+        /* ── Live feed ── */
+        .feed-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 900px;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            aspect-ratio: 4/3;
+        }
+        .feed-wrapper img,
+        .feed-wrapper canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* ── Grid overlay ── */
+        .grid-container {
+            position: relative;
+            width: 100%;
+            max-width: 900px;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .grid-container img {
+            width: 100%;
+            display: block;
+        }
+        .grid-container canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+
+        /* ── Inputs ── */
+        input[type="text"],
+        input[type="number"] {
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            color: #e0e0e0;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: .85rem;
+            outline: none;
+            transition: border-color .2s;
+        }
+        input:focus { border-color: #e94560; }
+
+        label { font-size: .85rem; }
+
+        .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .row.mt { margin-top: 10px; }
+
+        /* ── Drone info ── */
+        .drone-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .drone-info .info-card {
+            background: #1a1a2e;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: .8rem;
+        }
+        .drone-info .info-card span { display: block; color: #e94560; font-weight: 600; }
+
+        /* ── Progress bar ── */
+        .progress-wrap {
+            width: 100%;
+            max-width: 900px;
+            background: #16213e;
+            border-radius: 8px;
+            overflow: hidden;
+            height: 28px;
+            position: relative;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #0f3460, #e94560);
+            transition: width .4s;
+        }
+        .progress-text {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .8rem;
+            font-weight: 600;
+        }
+
+        /* ── Countdown ── */
+        .countdown {
+            font-size: 2.4rem;
+            font-weight: 700;
+            text-align: center;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .countdown.spraying { color: #e94560; animation: pulse .5s infinite alternate; }
+        @keyframes pulse { to { opacity: .4; } }
+        @keyframes blink { 50% { opacity: .3; } }
+
+        /* ── Complete ── */
+        .complete-wrap {
+            text-align: center;
+            padding: 40px 20px;
+        }
+        .complete-wrap h2 {
+            font-size: 2rem;
+            color: #00e676;
+            margin-bottom: 12px;
+        }
+        .complete-wrap .checkmark {
+            font-size: 4rem;
+            color: #00e676;
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+
+        /* ── Utility ── */
+        .hidden { display: none !important; }
+        .text-center { text-align: center; }
+        .mt-sm { margin-top: 6px; }
+        .mt-md { margin-top: 14px; }
+        .gap-sm { gap: 8px; }
+    </style>
+</head>
+<body>
+
+<!-- ════════════════ HEADER ════════════════ -->
+<header>
+    <h1>Autonomous Drone Painting System</h1>
+    <div class="subtitle">VIT Chennai</div>
+</header>
+
+<!-- ════════════════ STATUS BAR ════════════════ -->
+<div class="status-bar">
+    <div class="status-item">
+        <span id="esp32Dot" class="dot red"></span>
+        <span>ESP32</span>
+    </div>
+    <div class="status-item">
+        <span id="droneDot" class="dot red"></span>
+        <span>Drone</span>
+    </div>
+    <div class="status-item" id="modeLabel">Mode: LIVE</div>
+</div>
+
+<!-- ════════════════ MAIN CONTENT ════════════════ -->
+<main>
+
+    <!-- ──────── LIVE MODE ──────── -->
+    <section id="liveMode">
+        <div class="feed-wrapper">
+            <img id="liveFeed" src="/video_feed" alt="Live Camera Feed">
+        </div>
+
+        <div class="row mt-md" style="justify-content:center; gap:16px;">
+            <button id="btnCapture" class="btn btn-primary" style="font-size:1.1rem;padding:14px 36px;">
+                Capture &amp; Detect
+            </button>
+            <button id="btnDemo" class="btn btn-success" style="font-size:1.1rem;padding:14px 36px;">
+                Run Demo
+            </button>
+        </div>
+
+        <!-- Drone connection panel -->
+        <div class="panel mt-md">
+            <h3>Drone Connection</h3>
+            <div class="row">
+                <input id="connString" type="text" value="tcp:127.0.0.1:5762" style="flex:1;min-width:200px;" placeholder="Connection string">
+                <button id="btnConnectDrone" class="btn btn-secondary">Connect Drone</button>
+            </div>
+            <div id="droneStatusPanel" class="hidden">
+                <div class="drone-info">
+                    <div class="info-card">Mode<span id="droneMode">--</span></div>
+                    <div class="info-card">Altitude<span id="droneAlt">--</span></div>
+                    <div class="info-card">GPS<span id="droneGPS">--</span></div>
+                    <div class="info-card">Battery<span id="droneBat">--</span></div>
+                </div>
+                <div class="row mt">
+                    <label>Altitude (m):</label>
+                    <input id="takeoffAlt" type="number" value="3.0" step="0.5" min="1" max="50" style="width:80px;">
+                    <button id="btnArmTakeoff" class="btn btn-success">Arm &amp; Takeoff</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ──────── GRID MODE ──────── -->
+    <section id="gridMode" class="hidden">
+        <div class="grid-container" id="gridContainer">
+            <img id="capturedImg" src="" alt="Captured Image">
+            <canvas id="gridCanvas"></canvas>
+        </div>
+
+        <div class="panel mt-md">
+            <div id="gridStats" class="text-center" style="font-size:.95rem;margin-bottom:10px;"></div>
+            <div class="row" style="justify-content:center;">
+                <button id="btnPrecisionSpray" class="btn btn-primary">Start Precision Spray</button>
+                <button id="btnContinuousSpray" class="btn btn-primary">Start Continuous Spray</button>
+                <button id="btnBackLive" class="btn btn-secondary">Back to Live</button>
+            </div>
+            <div class="row mt" style="justify-content:center;">
+                <label><input id="chkUseDrone" type="checkbox"> Use Drone</label>
+            </div>
+            <div id="originGpsPanel" class="row mt hidden" style="justify-content:center;">
+                <label>Origin Lat:</label>
+                <input id="originLat" type="number" step="0.000001" style="width:130px;">
+                <label>Origin Lon:</label>
+                <input id="originLon" type="number" step="0.000001" style="width:130px;">
+            </div>
+        </div>
+    </section>
+
+    <!-- ──────── SPRAYING MODE ──────── -->
+    <section id="sprayMode" class="hidden">
+        <div class="grid-container" id="sprayGridContainer">
+            <img id="sprayImg" src="" alt="Captured Image">
+            <canvas id="sprayCanvas"></canvas>
+        </div>
+
+        <div class="countdown" id="countdownDisplay"></div>
+
+        <div class="progress-wrap">
+            <div class="progress-fill" id="progressFill" style="width:0%;"></div>
+            <div class="progress-text" id="progressText">Cell 0 of 0</div>
+        </div>
+
+        <div class="row mt-md" style="justify-content:center;">
+            <button id="btnAbort" class="btn btn-danger" style="font-size:1.05rem;padding:12px 32px;">Abort</button>
+        </div>
+    </section>
+
+    <!-- ──────── COMPLETE MODE ──────── -->
+    <section id="completeMode" class="hidden">
+        <div class="complete-wrap">
+            <div class="checkmark">&#10003;</div>
+            <h2>Mission Complete!</h2>
+            <p id="completeStats" style="font-size:1.1rem;margin-bottom:20px;"></p>
+            <button id="btnNewSession" class="btn btn-primary" style="font-size:1.05rem;padding:12px 32px;">Start New Session</button>
+        </div>
+    </section>
+
+</main>
+
+<!-- ════════════════ JAVASCRIPT ════════════════ -->
+<script>
+(function () {
+    "use strict";
+
+    /* ── Constants ── */
+    var ROWS = 10, COLS = 10;
+    var ESP32_POLL_MS = 3000;
+    var DRONE_POLL_MS = 1000;
+
+    /* ── State ── */
+    var currentMode = "live";        // live | grid | spraying | complete
+    var droneConnected = false;
+    var esp32Online = false;
+    var gridData = [];               // from server detection
+    var selectedCells = new Set();   // "r,c" strings
+    var completedCells = new Set();
+    var currentCell = null;          // [r,c] or null
+    var blinkOn = true;
+    var blinkTimer = null;
+    var sprayStartTime = 0;
+    var totalSprayCells = 0;
+    var doneSprayCells = 0;
+    var lastDroneStatus = null;
+    // Origin GPS for mapping telemetry → grid cells
+    var originLat = null;
+    var originLon = null;
+    var cellWidthM = 1.0;
+    var topAlt = 10.0;
+    var droneGridPos = null;  // {row, col} from real telemetry
+
+    /* ── Timers ── */
+    var esp32Timer = null;
+    var droneTimer = null;
+
+    /* ── Elements ── */
+    var $  = function (id) { return document.getElementById(id); };
+
+    var modeLabel       = $("modeLabel");
+    var esp32Dot        = $("esp32Dot");
+    var droneDot        = $("droneDot");
+
+    // Live
+    var liveSection     = $("liveMode");
+    var liveFeed        = $("liveFeed");
+    var btnCapture      = $("btnCapture");
+    var btnDemo         = $("btnDemo");
+    var connString      = $("connString");
+    var btnConnectDrone = $("btnConnectDrone");
+    var droneStatusPanel= $("droneStatusPanel");
+    var droneMode       = $("droneMode");
+    var droneAlt        = $("droneAlt");
+    var droneGPS        = $("droneGPS");
+    var droneBat        = $("droneBat");
+    var takeoffAlt      = $("takeoffAlt");
+    var btnArmTakeoff   = $("btnArmTakeoff");
+
+    // Grid
+    var gridSection     = $("gridMode");
+    var gridContainer   = $("gridContainer");
+    var capturedImg     = $("capturedImg");
+    var gridCanvas      = $("gridCanvas");
+    var gridStats       = $("gridStats");
+    var btnPrecision    = $("btnPrecisionSpray");
+    var btnContinuous   = $("btnContinuousSpray");
+    var btnBackLive     = $("btnBackLive");
+    var chkUseDrone     = $("chkUseDrone");
+    var originGpsPanel  = $("originGpsPanel");
+    var originLat       = $("originLat");
+    var originLon       = $("originLon");
+
+    // Spray
+    var spraySection    = $("sprayMode");
+    var sprayImg        = $("sprayImg");
+    var sprayCanvas     = $("sprayCanvas");
+    var countdownDisp   = $("countdownDisplay");
+    var progressFill    = $("progressFill");
+    var progressText    = $("progressText");
+    var btnAbort        = $("btnAbort");
+
+    // Complete
+    var completeSection = $("completeMode");
+    var completeStats   = $("completeStats");
+    var btnNewSession   = $("btnNewSession");
+
+    /* ══════════════════════════════════════
+       MODE SWITCHING
+       ══════════════════════════════════════ */
+    function setMode(mode) {
+        currentMode = mode;
+        liveSection.classList.toggle("hidden", mode !== "live");
+        gridSection.classList.toggle("hidden", mode !== "grid");
+        spraySection.classList.toggle("hidden", mode !== "spraying");
+        completeSection.classList.toggle("hidden", mode !== "complete");
+
+        var labels = { live: "LIVE", grid: "GRID", spraying: "SPRAYING", complete: "COMPLETE" };
+        modeLabel.textContent = "Mode: " + labels[mode];
+
+        if (mode === "live") {
+            liveFeed.src = "/video_feed";
+            cleanupSpray();
+        } else {
+            liveFeed.src = "";
+        }
+    }
+
+    /* ══════════════════════════════════════
+       ESP32 POLLING
+       ══════════════════════════════════════ */
+    function pollESP32() {
+        fetch("/esp32/status")
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                esp32Online = !!d.reachable;
+                esp32Dot.className = "dot " + (esp32Online ? "green" : "red");
+            })
+            .catch(function () {
+                esp32Online = false;
+                esp32Dot.className = "dot red";
+            });
+    }
+
+    /* ══════════════════════════════════════
+       DRONE
+       ══════════════════════════════════════ */
+    function pollDroneStatus() {
+        fetch("/drone/status")
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                lastDroneStatus = d;
+                droneMode.textContent = d.mode || "--";
+                droneAlt.textContent  = d.altitude != null ? d.altitude.toFixed(1) + " m" : "--";
+                droneGPS.textContent  = d.lat != null ? d.lat.toFixed(6) + ", " + d.lon.toFixed(6) : "--";
+                droneBat.textContent  = d.battery != null ? d.battery + "%" : "--";
+                droneDot.className    = "dot green";
+
+                // Map GPS → grid position if origin is known
+                if (originLat !== null && d.lat != null && d.altitude != null) {
+                    var dlon = (d.lon - originLon) * 111319.5 * Math.cos(originLat * Math.PI / 180);
+                    var col = Math.round(dlon / cellWidthM);
+                    var row = Math.round((topAlt - d.altitude) / cellWidthM);
+                    if (row >= 0 && row < ROWS && col >= 0 && col < COLS) {
+                        droneGridPos = {row: row, col: col};
+                    } else {
+                        droneGridPos = null;
+                    }
+                    // Redraw spray canvas to show drone marker
+                    if (currentMode === "spraying") {
+                        drawGrid(sprayCanvas);
+                    }
+                }
+            })
+            .catch(function () {
+                droneDot.className = "dot red";
+            });
+    }
+
+    function connectDrone() {
+        btnConnectDrone.disabled = true;
+        fetch("/drone/connect", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ connection_string: connString.value })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            if (d.success) {
+                droneConnected = true;
+                droneDot.className = "dot green";
+                droneStatusPanel.classList.remove("hidden");
+                chkUseDrone.checked = true;
+                droneTimer = setInterval(pollDroneStatus, DRONE_POLL_MS);
+                pollDroneStatus();
+            } else {
+                alert("Drone connection failed: " + (d.error || "unknown"));
+            }
+        })
+        .catch(function (e) { alert("Drone connection error: " + e); })
+        .finally(function () { btnConnectDrone.disabled = false; });
+    }
+
+    function armAndTakeoff() {
+        btnArmTakeoff.disabled = true;
+        fetch("/drone/arm_takeoff", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ altitude: parseFloat(takeoffAlt.value) || 3.0 })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            if (!d.success) alert("Arm/Takeoff failed: " + (d.error || "unknown"));
+        })
+        .catch(function (e) { alert("Arm/Takeoff error: " + e); })
+        .finally(function () { btnArmTakeoff.disabled = false; });
+    }
+
+    /* ══════════════════════════════════════
+       CAPTURE & DETECT
+       ══════════════════════════════════════ */
+    function captureAndDetect() {
+        btnCapture.disabled = true;
+        btnCapture.textContent = "Detecting...";
+
+        fetch("/capture_and_detect", { method: "POST" })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (!d.success) { alert("Detection failed: " + (d.error || "")); return; }
+
+                gridData = d.grid || [];
+                selectedCells.clear();
+                completedCells.clear();
+                currentCell = null;
+
+                // Pre-select detected unpainted cells
+                for (var r = 0; r < ROWS; r++) {
+                    for (var c = 0; c < COLS; c++) {
+                        if (gridData[r] && gridData[r][c]) {
+                            selectedCells.add(r + "," + c);
+                        }
+                    }
+                }
+
+                capturedImg.src = d.image_url || "/captured_image";
+                capturedImg.onload = function () {
+                    fitCanvas(gridCanvas, capturedImg);
+                    drawGrid(gridCanvas);
+                    updateGridStats();
+                    prefillOriginGPS();
+                    setMode("grid");
+                };
+            })
+            .catch(function (e) { alert("Capture error: " + e); })
+            .finally(function () {
+                btnCapture.disabled = false;
+                btnCapture.textContent = "Capture & Detect";
+            });
+    }
+
+    /* ══════════════════════════════════════
+       CANVAS / GRID
+       ══════════════════════════════════════ */
+    function fitCanvas(canvas, img) {
+        canvas.width  = img.naturalWidth  || img.width;
+        canvas.height = img.naturalHeight || img.height;
+    }
+
+    function drawGrid(canvas, opts) {
+        opts = opts || {};
+        var ctx = canvas.getContext("2d");
+        var w = canvas.width;
+        var h = canvas.height;
+        var cellW = w / COLS;
+        var cellH = h / ROWS;
+        var usedCompleted = opts.completedCells || completedCells;
+        var usedCurrent   = opts.currentCell    || currentCell;
+        var showBlink     = opts.blinkOn !== undefined ? opts.blinkOn : blinkOn;
+
+        ctx.clearRect(0, 0, w, h);
+
+        // Draw altitude labels on left edge (row 0 = 10m, row 9 = 1m)
+        ctx.font = "9px monospace";
+        ctx.fillStyle = "rgba(255, 255, 200, 0.8)";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        for (var r = 0; r < ROWS; r++) {
+            var altM = ROWS - r;
+            ctx.fillText(altM + "m", cellW / 2, r * cellH + cellH / 2);
+        }
+
+        for (var r = 0; r < ROWS; r++) {
+            for (var c = 0; c < COLS; c++) {
+                var key = r + "," + c;
+                var x = c * cellW;
+                var y = r * cellH;
+
+                // Fill based on state
+                if (usedCompleted.has(key)) {
+                    ctx.fillStyle = "rgba(68, 68, 255, 0.45)";
+                    ctx.fillRect(x, y, cellW, cellH);
+                } else if (usedCurrent && usedCurrent[0] === r && usedCurrent[1] === c) {
+                    if (showBlink) {
+                        ctx.fillStyle = "rgba(255, 165, 0, 0.5)";
+                        ctx.fillRect(x, y, cellW, cellH);
+                    }
+                } else if (selectedCells.has(key)) {
+                    // Green = auto-detected, yellow = manually toggled
+                    var isAutoDetected = gridData[r] && gridData[r][c];
+                    ctx.fillStyle = isAutoDetected
+                        ? "rgba(0, 255, 0, 0.3)"
+                        : "rgba(255, 255, 0, 0.3)";
+                    ctx.fillRect(x, y, cellW, cellH);
+                }
+
+                // Grid lines
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x, y, cellW, cellH);
+            }
+        }
+
+        // Draw drone position marker (red diamond) from telemetry
+        if (droneGridPos !== null) {
+            var dx = droneGridPos.col * cellW + cellW / 2;
+            var dy = droneGridPos.row * cellH + cellH / 2;
+            var sz = Math.min(cellW, cellH) * 0.4;
+            ctx.save();
+            ctx.fillStyle = "rgba(255, 50, 50, 0.9)";
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(dx, dy - sz);
+            ctx.lineTo(dx + sz, dy);
+            ctx.lineTo(dx, dy + sz);
+            ctx.lineTo(dx - sz, dy);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    function updateGridStats() {
+        var autoCount = 0;
+        for (var r = 0; r < ROWS; r++) {
+            for (var c = 0; c < COLS; c++) {
+                if (gridData[r] && gridData[r][c]) autoCount++;
+            }
+        }
+        gridStats.textContent = autoCount + " unpainted cells detected, " + selectedCells.size + " cells selected";
+    }
+
+    function handleGridClick(e) {
+        var rect = gridCanvas.getBoundingClientRect();
+        var scaleX = gridCanvas.width / rect.width;
+        var scaleY = gridCanvas.height / rect.height;
+        var mx = (e.clientX - rect.left) * scaleX;
+        var my = (e.clientY - rect.top)  * scaleY;
+
+        var col = Math.floor(mx / (gridCanvas.width / COLS));
+        var row = Math.floor(my / (gridCanvas.height / ROWS));
+        if (row < 0 || row >= ROWS || col < 0 || col >= COLS) return;
+
+        var key = row + "," + col;
+        if (selectedCells.has(key)) {
+            selectedCells.delete(key);
+        } else {
+            selectedCells.add(key);
+        }
+        drawGrid(gridCanvas);
+        updateGridStats();
+    }
+
+    function prefillOriginGPS() {
+        chkUseDrone.checked = droneConnected;
+        toggleOriginPanel();
+        if (lastDroneStatus && lastDroneStatus.lat != null) {
+            originLat.value = lastDroneStatus.lat;
+            originLon.value = lastDroneStatus.lon;
+        }
+    }
+
+    function toggleOriginPanel() {
+        originGpsPanel.classList.toggle("hidden", !chkUseDrone.checked);
+    }
+
+    /* ══════════════════════════════════════
+       SPRAYING
+       ══════════════════════════════════════ */
+    var sprayReader = null;
+
+    function startSpray(mode) {
+        var cells = [];
+        selectedCells.forEach(function (key) {
+            var parts = key.split(",");
+            cells.push([parseInt(parts[0], 10), parseInt(parts[1], 10)]);
+        });
+        if (cells.length === 0) { alert("No cells selected!"); return; }
+
+        // Sort cells: precision = cell by cell; continuous = row by row
+        cells.sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
+
+        completedCells.clear();
+        currentCell = null;
+        totalSprayCells = cells.length;
+        doneSprayCells = 0;
+        sprayStartTime = Date.now();
+
+        // Set up spray canvas
+        sprayImg.src = capturedImg.src;
+        sprayImg.onload = function () {
+            fitCanvas(sprayCanvas, sprayImg);
+            drawGrid(sprayCanvas);
+        };
+
+        setMode("spraying");
+        updateProgress();
+        startBlink();
+
+        var url = mode === "continuous" ? "/spray_sequence_continuous" : "/spray_sequence";
+
+        fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                cells: cells,
+                use_drone: chkUseDrone.checked,
+                origin_lat: parseFloat(originLat.value) || 0,
+                origin_lon: parseFloat(originLon.value) || 0
+            })
+        })
+        .then(function (response) {
+            var reader = response.body.getReader();
+            sprayReader = reader;
+            var decoder = new TextDecoder();
+            var buffer = "";
+
+            function read() {
+                reader.read().then(function (result) {
+                    if (result.done) return;
+                    buffer += decoder.decode(result.value, { stream: true });
+
+                    // Split on double-newline (SSE boundary)
+                    var parts = buffer.split("\n\n");
+                    buffer = parts.pop(); // keep incomplete chunk
+
+                    for (var i = 0; i < parts.length; i++) {
+                        var lines = parts[i].split("\n");
+                        for (var j = 0; j < lines.length; j++) {
+                            var line = lines[j];
+                            if (line.indexOf("data: ") === 0) {
+                                try {
+                                    var data = JSON.parse(line.slice(6));
+                                    handleSprayEvent(data);
+                                } catch (ex) { /* ignore parse errors */ }
+                            }
+                        }
+                    }
+                    read();
+                }).catch(function () { /* stream closed */ });
+            }
+            read();
+        })
+        .catch(function (e) { alert("Spray error: " + e); });
+    }
+
+    function handleSprayEvent(data) {
+        switch (data.event) {
+            case "moving":
+                currentCell = [data.row, data.col];
+                countdownDisp.className = "countdown";
+                var altInfo = data.altitude ? " @ " + Math.round(data.altitude) + "m" : "";
+                var progInfo = data.total ? " [" + (data.index+1) + "/" + data.total + "]" : "";
+                countdownDisp.textContent = "Moving to Row " + data.row + " Col " + data.col + altInfo + progInfo;
+                drawGrid(sprayCanvas);
+                break;
+
+            case "spraying":
+                countdownDisp.className = "countdown spraying";
+                countdownDisp.textContent = "SPRAYING";
+                break;
+
+            case "done":
+                var key = data.row + "," + data.col;
+                completedCells.add(key);
+                doneSprayCells++;
+                currentCell = null;
+                countdownDisp.className = "countdown";
+                countdownDisp.textContent = "";
+                updateProgress();
+                drawGrid(sprayCanvas);
+                break;
+
+            case "complete":
+                cleanupSpray();
+                var elapsed = ((Date.now() - sprayStartTime) / 1000).toFixed(1);
+                completeStats.textContent = "Painted " + doneSprayCells + " cells in " + elapsed + " seconds";
+                setMode("complete");
+                break;
+        }
+    }
+
+    var countdownTimer = null;
+
+    function startCountdown(seconds, label) {
+        clearInterval(countdownTimer);
+        var remaining = seconds;
+        countdownDisp.textContent = label + "... " + remaining;
+        countdownTimer = setInterval(function () {
+            remaining--;
+            if (remaining > 0) {
+                countdownDisp.textContent = label + "... " + remaining;
+            } else {
+                clearInterval(countdownTimer);
+                countdownTimer = null;
+            }
+        }, 1000);
+    }
+
+    function updateProgress() {
+        var pct = totalSprayCells > 0 ? (doneSprayCells / totalSprayCells * 100) : 0;
+        progressFill.style.width = pct + "%";
+        progressText.textContent = "Cell " + doneSprayCells + " of " + totalSprayCells;
+    }
+
+    function startBlink() {
+        stopBlink();
+        blinkOn = true;
+        blinkTimer = setInterval(function () {
+            blinkOn = !blinkOn;
+            if (currentMode === "spraying") drawGrid(sprayCanvas, { blinkOn: blinkOn });
+        }, 500);
+    }
+
+    function stopBlink() {
+        if (blinkTimer) { clearInterval(blinkTimer); blinkTimer = null; }
+    }
+
+    function cleanupSpray() {
+        stopBlink();
+        if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+        if (sprayReader) {
+            try { sprayReader.cancel(); } catch (ex) {}
+            sprayReader = null;
+        }
+    }
+
+    function abortSpray() {
+        fetch("/spray_abort", { method: "POST" }).catch(function () {});
+        if (chkUseDrone.checked && droneConnected) {
+            fetch("/drone/rtl", { method: "POST" }).catch(function () {});
+        }
+        cleanupSpray();
+        setMode("live");
+    }
+
+    /* ══════════════════════════════════════
+       DEMO MODE — full automated flow via SSE
+       ══════════════════════════════════════ */
+    function runDemo() {
+        btnDemo.disabled = true;
+        btnDemo.textContent = "Running Demo...";
+
+        // Reset state
+        gridData = [];
+        selectedCells.clear();
+        completedCells.clear();
+        currentCell = null;
+        totalSprayCells = 0;
+        doneSprayCells = 0;
+        sprayStartTime = Date.now();
+
+        fetch("/demo", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                connection_string: connString.value,
+                altitude: parseFloat(takeoffAlt.value) || 3.0
+            })
+        })
+        .then(function (response) {
+            var reader = response.body.getReader();
+            sprayReader = reader;
+            var decoder = new TextDecoder();
+            var buffer = "";
+
+            function read() {
+                reader.read().then(function (result) {
+                    if (result.done) return;
+                    buffer += decoder.decode(result.value, { stream: true });
+
+                    var parts = buffer.split("\n\n");
+                    buffer = parts.pop();
+
+                    for (var i = 0; i < parts.length; i++) {
+                        var lines = parts[i].split("\n");
+                        for (var j = 0; j < lines.length; j++) {
+                            var line = lines[j];
+                            if (line.indexOf("data: ") === 0) {
+                                try {
+                                    var data = JSON.parse(line.slice(6));
+                                    handleDemoEvent(data);
+                                } catch (ex) { /* ignore parse errors */ }
+                            }
+                        }
+                    }
+                    read();
+                }).catch(function () {
+                    btnDemo.disabled = false;
+                    btnDemo.textContent = "Run Demo";
+                });
+            }
+            read();
+        })
+        .catch(function (e) {
+            alert("Demo error: " + e);
+            btnDemo.disabled = false;
+            btnDemo.textContent = "Run Demo";
+        });
+    }
+
+    function handleDemoEvent(data) {
+        switch (data.event) {
+            case "status":
+                // Update drone panel
+                if (data.step === "connect" && data.success) {
+                    droneConnected = true;
+                    droneDot.className = "dot green";
+                    droneStatusPanel.classList.remove("hidden");
+                    droneTimer = setInterval(pollDroneStatus, DRONE_POLL_MS);
+                }
+                if (data.step === "arm_takeoff" && data.success) {
+                    pollDroneStatus();
+                }
+                countdownDisp.className = "countdown";
+                countdownDisp.textContent = data.message || "";
+                break;
+
+            case "error":
+                alert("Demo error (" + data.step + "): " + data.message);
+                setMode("live");
+                btnDemo.disabled = false;
+                btnDemo.textContent = "Run Demo";
+                break;
+
+            case "detected":
+                // Got grid data -- update UI
+                gridData = data.grid || [];
+                selectedCells.clear();
+                for (var r = 0; r < ROWS; r++) {
+                    for (var c = 0; c < COLS; c++) {
+                        if (gridData[r] && gridData[r][c]) {
+                            selectedCells.add(r + "," + c);
+                        }
+                    }
+                }
+                totalSprayCells = data.unpainted_count || selectedCells.size;
+                capturedImg.src = data.image_url || "";
+                capturedImg.onload = function () {
+                    fitCanvas(gridCanvas, capturedImg);
+                    drawGrid(gridCanvas);
+                    updateGridStats();
+                };
+                // Setup spray visuals
+                sprayImg.src = data.image_url || "";
+                sprayImg.onload = function () {
+                    fitCanvas(sprayCanvas, sprayImg);
+                    drawGrid(sprayCanvas);
+                };
+                setMode("spraying");
+                updateProgress();
+                startBlink();
+                break;
+
+            case "origin":
+                // Store origin GPS so we can map telemetry → grid cells
+                originLat = data.origin_lat;
+                originLon = data.origin_lon;
+                cellWidthM = data.cell_width || 1.0;
+                topAlt = data.top_alt || 10.0;
+                break;
+
+            case "moving":
+                currentCell = [data.row, data.col];
+                countdownDisp.className = "countdown";
+                var altLabel = data.altitude ? " @ " + Math.round(data.altitude) + "m" : "";
+                countdownDisp.textContent = "Moving to Row " + data.row + " Col " + data.col + altLabel + " [" + (data.index+1) + "/" + data.total + "]";
+                drawGrid(sprayCanvas);
+                break;
+
+            case "spraying":
+                countdownDisp.className = "countdown spraying";
+                countdownDisp.textContent = "SPRAYING";
+                break;
+
+            case "done":
+                var key = data.row + "," + data.col;
+                completedCells.add(key);
+                doneSprayCells++;
+                currentCell = null;
+                countdownDisp.className = "countdown";
+                countdownDisp.textContent = "";
+                updateProgress();
+                drawGrid(sprayCanvas);
+                break;
+
+            case "complete":
+                cleanupSpray();
+                var elapsed = ((Date.now() - sprayStartTime) / 1000).toFixed(1);
+                if (data.aborted) {
+                    completeStats.textContent = "Aborted after " + doneSprayCells + " cells (" + elapsed + " seconds)";
+                } else {
+                    completeStats.textContent = "Painted " + doneSprayCells + " cells in " + elapsed + " seconds";
+                }
+                setMode("complete");
+                btnDemo.disabled = false;
+                btnDemo.textContent = "Run Demo";
+                break;
+        }
+    }
+
+    /* ══════════════════════════════════════
+       EVENT LISTENERS
+       ══════════════════════════════════════ */
+    btnCapture.addEventListener("click", captureAndDetect);
+    btnDemo.addEventListener("click", runDemo);
+    btnConnectDrone.addEventListener("click", connectDrone);
+    btnArmTakeoff.addEventListener("click", armAndTakeoff);
+    gridCanvas.addEventListener("click", handleGridClick);
+    btnPrecision.addEventListener("click", function () { startSpray("precision"); });
+    btnContinuous.addEventListener("click", function () { startSpray("continuous"); });
+    btnBackLive.addEventListener("click", function () { setMode("live"); });
+    chkUseDrone.addEventListener("change", toggleOriginPanel);
+    btnAbort.addEventListener("click", abortSpray);
+    btnNewSession.addEventListener("click", function () {
+        gridData = [];
+        selectedCells.clear();
+        completedCells.clear();
+        currentCell = null;
+        droneConnected = false;
+        setMode("live");
+    });
+
+    /* ══════════════════════════════════════
+       INIT
+       ══════════════════════════════════════ */
+    pollESP32();
+    esp32Timer = setInterval(pollESP32, ESP32_POLL_MS);
+
+})();
+</script>
+</body>
+</html>

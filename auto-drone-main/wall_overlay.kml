@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Wall Painting Area</name>
+    <description>Autonomous Drone Painting Target Wall</description>
+    <GroundOverlay>
+      <name>Target Wall</name>
+      <color>ddffffff</color>
+      <Icon>
+        <href>wall_overlay.png</href>
+      </Icon>
+      <LatLonBox>
+        <north>13.0827850</north>
+        <south>13.0826150</south>
+        <east>80.2708650</east>
+        <west>80.2705350</west>
+        <rotation>0</rotation>
+      </LatLonBox>
+    </GroundOverlay>
+    <Placemark>
+      <name>Drone Home</name>
+      <Style>
+        <IconStyle>
+          <color>ff0000ff</color>
+          <scale>1.2</scale>
+          <Icon><href>http://maps.google.com/mapfiles/kml/shapes/heliport.png</href></Icon>
+        </IconStyle>
+      </Style>
+      <Point>
+        <coordinates>80.2707000,13.0827000,0</coordinates>
+      </Point>
+    </Placemark>
+  </Document>
+</kml>
